@@ -22,6 +22,9 @@ export const ADMIN_NAV = [
   { label: "Institutions", path: "/admin/institutions", icon: Building2, permission: "institutions.manage", testId: "nav-admin-institutions" },
   { label: "Courses", path: "/admin/courses", icon: BookOpen, permission: "courses.manage", testId: "nav-admin-courses" },
   { label: "Enrollments", path: "/admin/enrollments", icon: GraduationCap, permission: "enrollments.manage", testId: "nav-admin-enrollments" },
+  { label: "Examinations", path: "/admin/examinations", icon: FileCheck2, permission: "exams.manage", testId: "nav-admin-examinations" },
+  { label: "Documents", path: "/admin/documents", icon: FileText, permission: "documents.issue", testId: "nav-admin-documents" },
+  { label: "Templates", path: "/admin/document-templates", icon: Settings, permission: "documents.templates.manage", testId: "nav-admin-templates" },
 ];
 
 export const PORTAL_NAV = [

@@ -23,6 +23,14 @@ export function useCourseSessions(courseId) {
   });
 }
 
+export function useCourseSubjects(courseId) {
+  return useQuery({
+    queryKey: ["lookup", "course-subjects", courseId],
+    queryFn: async () => (await api.get(`/courses/${courseId}/subjects`)).data.subjects || [],
+    enabled: !!courseId,
+  });
+}
+
 export function nameById(list, id, field = "name") {
   const item = (list || []).find((x) => x.id === id);
   return item ? item[field] : id ? `#${id}` : "-";

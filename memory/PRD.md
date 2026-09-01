@@ -377,6 +377,104 @@ attempt incomplete (found by iteration_8 re-test), both now fully fixed and curl
 - **User explicitly instructed: STOP after Checkpoint 2, do not start Checkpoint 3** until they
   review these results and give approval.
 
+### Login/session bug fix — external preview URL, fixed 2026-09-01
+- User reported "Invalid email or password" when logging in via the public preview URL (not localhost).
+  RCA: Emergent's platform ingress hardcodes `/api/*` to port 8001 (the default FastAPI scaffold at
+  `/app/backend`, otherwise unused by this PHP project); the real backend is PHP/Apache on port 8090.
+  Previous testing was all done via `localhost:3000` (webpack devServer's own proxy → 8090), which
+  masked this since the platform ingress was never exercised.
+- Fix: added a catch-all reverse-proxy route in `/app/backend/server.py`
+  (`proxy_to_php_backend`, `/api/{full_path:path}`) using `httpx.AsyncClient` that transparently
+  forwards every `/api/*` request (method/headers/cookies/body/query) to `127.0.0.1:8090` and relays
+  the response back including multiple `Set-Cookie` headers (session cookie). The two original stub
+  routes (`/api/`, `/api/status`) are matched first by FastAPI and unaffected.
+- Verified by `testing_agent` (iteration_9.json) against the real external URL: login/session
+  persistence/role redirects/list pages/logout/CSRF-protected edits — all 6/6 PASS.
+- Known follow-up (not fixed, out of scope for this fix): `StudentDetailPage.jsx`'s uploaded-document
+  links (`/${file_path}`) have the same static-file routing problem on the external URL (static
+  `/uploads/*` paths route to port 3000, not 8090). Checkpoint 4's new Documents module avoids this by
+  using the working `/api/documents/{id}/download` endpoint and a text verification link instead of
+  an inline QR `<img>`. The Checkpoint 2 student-upload link should be fixed later via a dedicated
+  `/api/students/{id}/documents/{docId}/download` stream endpoint (small backend addition).
+
+### Kingswell design system, applied 2026-09-01
+- User requested a professional British/international-institute look to replace the generic shadcn
+  default. Ran `design_agent`; guidelines saved at `/app/design_guidelines.json`.
+- Tokens (in `/app/frontend/src/index.css` + `tailwind.config.js`): deep navy primary
+  (`--navy-deep`/`--navy-surface`), warm ivory background/card, restrained gold accent
+  (`--gold`/`--gold-hover`), Playfair Display for headings (serif), Inter for body, `--radius`
+  tightened to 6px (no oversized rounded cards).
+  Fonts loaded via Google Fonts in `public/index.html`.
+- Shared components redesigned globally (cascades to every page automatically):
+  `AppLayout.jsx` (navy sidebar with gold active-item border + crest, ivory topbar), `PageHeader.jsx`
+  (gold rule + serif title), `StatusBadge.jsx` (semantic emerald/amber/rose/secondary chips replacing
+  generic shadcn Badge), `ui/table.jsx` (uppercase tracked headers, ivory-tinted header row),
+  `ui/card.jsx` (bordered sections, serif CardTitle), `ui/tabs.jsx` (gold underline active tab).
+  `LoginPage.jsx` rebuilt as a navy/ivory split panel.
+- Kingswell crest logo (user-uploaded) now used in the sidebar, login page and browser favicon/title
+  (`/app/frontend/public/assets/kingswell-logo.png`).
+- Rolled out across all admin pages (Dashboard, Admissions, Students, Institutions, Courses,
+  Enrollments, Examinations, Documents, Templates, Login) since they all consume the same shared
+  primitives — no per-page rewrites needed beyond the shared components above.
+
+### Phase 7 — Checkpoint 3 (Admin: Examinations), complete 2026-09-01
+- New files under `/app/frontend/src/pages/admin/examinations/`: `ExaminationsListPage.jsx` (list +
+  status/course filters + create dialog), `ExaminationDetailPage.jsx` (editable fields + delete, 3
+  tabs), `ExaminationSubjectsTab.jsx` (add/edit/delete subject with exam date/time/duration/max/pass
+  marks, picks from the course's `course_subjects`), `ExaminationRegistrationsTab.jsx` (register an
+  eligible active enrollment, per-row Hall Ticket/Marks/Compute Result/Status actions),
+  `MarksEntryDialog.jsx` (per-subject marks entry + absent checkbox + verify), `HallTicketDialog.jsx`
+  (read-only formatted hall ticket), `ExaminationResultsTab.jsx` (computed results + publish).
+- Routes added: `/admin/examinations`, `/admin/examinations/:id`. Nav item added (permission
+  `exams.manage`).
+- **RBAC gap found + fixed**: `examination_officer` role lacked `enrollments.manage`, so
+  `GET /api/enrollments` (needed to pick a student to register for an exam) 403'd for that role
+  despite ARCHITECTURE.md's matrix giving Exam Officer full exam-workflow capability. Added
+  `enrollments.manage` to the `examination_officer` seed in `/app/php-backend/database/seed.php`
+  and re-ran the seed script (idempotent). Created test account
+  `examofficer.test@kingswellinstitute.uk` for this role (see test_credentials.md).
+- Tested by `testing_agent` (iteration_7/iteration_8, run before this fork's continuation) covering
+  the full exam CRUD/subjects/registrations/marks/results/RBAC flow — all passed after 2 minor
+  backend bugs (empty-string `dob`/`gender` and `duration_months`/`total_credits` breaking MariaDB
+  strict mode) were fixed via a new `Validator::nullifyEmpty()` helper.
+
+### Phase 7 — Checkpoint 4 (Admin: Documents), complete 2026-09-01
+- New files under `/app/frontend/src/pages/admin/documents/`: `DocumentsListPage.jsx` (list, doc_type/
+  status filters, client-side search by document #/student/registration #), `DocumentDetailPage.jsx`
+  (candidate info, type-specific extra details renderer for all 8 doc types, verification token/link,
+  signatories + add-signatory, Download PDF, Revoke/Cancel with required reason, Reissue with
+  replaces/superseded-by navigation links), `IssueDocumentDialog.jsx` (dynamic issuance form per
+  doc_type: hall_ticket via Examination→Registration picker, marksheet via Examination→published
+  Result picker, transcript via Student search + multi-select of that student's published results
+  across all exams, certificate/diploma/degree/completion_letter via Student search→completed
+  Enrollment (+ optional linked result), admission_letter via approved/enrolled Admission picker;
+  optional Institution selector on all types), `DocumentTemplatesPage.jsx` (list/create/edit/delete
+  templates per doc_type, editing `name`/`paper_size`/`orientation`/`is_active`/`html_layout`/
+  `css_styles`/`fields_config` — a JSON textarea, no new template engine).
+- Routes added: `/admin/documents`, `/admin/documents/:id`, `/admin/document-templates`. Nav items
+  added (`documents.issue`, `documents.templates.manage`). Dashboard already had a working
+  "Documents Issued" stat tile (built in Checkpoint 3, now backed by this real page).
+- No backend/API/DB changes were needed or made — all existing Phase 6 endpoints were sufficient once
+  composed thoughtfully on the frontend (e.g. transcript's "all published results for a student" is
+  built by fetching `/examinations` then `/examinations/{id}/results` per exam and filtering
+  client-side, since no direct `results by student_id` endpoint exists — acceptable for this
+  institute's small dataset).
+- Design decision to avoid a routing trap: the QR PNG (`qr_code_path`) is a static file under
+  `public_html/uploads/...` which is NOT reachable via the external preview URL (same root cause as
+  the login bug — static paths route to port 3000, not 8090). Instead of rendering `<img src=.../qr.png>`,
+  the detail page shows the verification URL as text/link; the QR itself is still embedded in the
+  downloadable PDF (via the working `/api/documents/{id}/download` route), so no functionality is lost.
+- Self-tested (lightweight, per user's explicit request — no testing_agent this checkpoint):
+  screenshot-verified list+filters, full issuance flow (Certificate via student search → completed
+  enrollment → issue, default template signatories applied automatically), `curl`-verified PDF
+  download (valid `%PDF-` magic bytes), Reissue (correctly supersedes old doc, revision increments,
+  bidirectional replaces/superseded-by links), Revoke with required reason (action buttons correctly
+  hidden once non-valid), Templates edit dialog (fields_config JSON prefilled correctly). No console
+  errors beyond expected pre-login 401s and sandbox HMR websocket noise.
+- Left-over test fixtures: a few extra certificate documents for Alice Wonder (student id=3) from
+  self-testing — harmless, cannot be deleted by design (documents are immutable audit records; only
+  revoke/cancel/reissue are supported), safe to ignore.
+
 ## Prioritized backlog (from ARCHITECTURE.md §11, unchanged)
 - **P2 — Phase 7:** Finance (manual payments + receipts) & notifications, dashboards/reports.
 - **P2 — Phase 8:** Hardening + Hostinger deployment guide/checklist, final relative-API build.

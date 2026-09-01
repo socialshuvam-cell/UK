@@ -17,6 +17,11 @@ import CoursesListPage from "@/pages/admin/courses/CoursesListPage";
 import CourseDetailPage from "@/pages/admin/courses/CourseDetailPage";
 import EnrollmentsListPage from "@/pages/admin/enrollments/EnrollmentsListPage";
 import EnrollmentDetailPage from "@/pages/admin/enrollments/EnrollmentDetailPage";
+import ExaminationsListPage from "@/pages/admin/examinations/ExaminationsListPage";
+import ExaminationDetailPage from "@/pages/admin/examinations/ExaminationDetailPage";
+import DocumentsListPage from "@/pages/admin/documents/DocumentsListPage";
+import DocumentDetailPage from "@/pages/admin/documents/DocumentDetailPage";
+import DocumentTemplatesPage from "@/pages/admin/documents/DocumentTemplatesPage";
 import "@/App.css";
 
 function RootRedirect() {
@@ -53,6 +58,11 @@ function App() {
             <Route path="courses/:id" element={<CourseDetailPage />} />
             <Route path="enrollments" element={<EnrollmentsListPage />} />
             <Route path="enrollments/:id" element={<EnrollmentDetailPage />} />
+            <Route path="examinations" element={<ExaminationsListPage />} />
+            <Route path="examinations/:id" element={<ExaminationDetailPage />} />
+            <Route path="documents" element={<DocumentsListPage />} />
+            <Route path="documents/:id" element={<DocumentDetailPage />} />
+            <Route path="document-templates" element={<DocumentTemplatesPage />} />
           </Route>
 
           <Route

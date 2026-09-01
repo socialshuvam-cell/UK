@@ -1,0 +1,32 @@
+{
+  "summary": "Targeted regression test of the FastAPI -> PHP reverse-proxy fix in /app/backend/server.py, executed against the EXTERNAL preview URL (https://kingswell-preview.preview.emergentagent.com) via real browser automation. All 6 requested scenarios PASSED. The 'Invalid email or password' bug reported by the user when logging in via the public URL is fully resolved.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "test1_super_admin_login_and_session_persist": "PASS - login redirects to /admin, no error, session persists after full page reload (session cookie survives proxy hop)",
+    "test2_admission_officer_login": "PASS - officer.test@kingswellinstitute.uk logs in, dashboard loads (toast 'Welcome back, Test'), left nav shows role-appropriate items (Dashboard, Admissions, Students, Institutions, Enrollments) but NOT Courses/Examinations",
+    "test3_student_login_redirect_portal": "PASS - alice.wonder redirected to /portal, Student Portal renders profile summary (registration KWI/REG/2026/000001, 2 enrollments)",
+    "test4_admin_list_pages_load_data": "PASS - /admin/examinations, /admin/students, /admin/institutions all load through the proxy with real data (e.g. Institutions shows Kingswell Main Campus). GET requests with query params forward correctly.",
+    "test5_logout_and_wrong_password_error": "PASS - logout clears session and returns to /login; a subsequent login with a wrong password correctly shows a real 'Invalid email or password' error (proven not to be a false-negative from the proxy)",
+    "test6_csrf_protected_edit": "PASS - as super_admin edited student id=3 (Alice Wonder) phone from 1234567890 -> 9998887777, success toast 'Student profile updated' shown, value confirmed persisted after reload (verified GET returns new value), then reset back to original 1234567890. X-CSRF-Token header survives the proxy hop."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py proxy: httpx.AsyncClient is created at module import time (line 79). For a single-worker uvicorn process this is fine, but if the app is ever reconfigured with multiple workers or reload, the client should ideally be created in a FastAPI lifespan/startup handler and closed on shutdown. Currently _proxy_client is never closed (only the mongo client is closed on shutdown).",
+    "server.py proxy: excluded response headers do not include 'keep-alive' or 'proxy-authenticate'; low risk since PHP/Apache is unlikely to send them, but hop-by-hop header stripping could be made more complete.",
+    "server.py proxy: OPTIONS is included in the allowed methods and OPTIONS preflight is also handled by FastAPI's CORS middleware (added AFTER include_router). Route matching order means the CORS middleware still wraps the proxy route, so this is fine, but worth being aware CORSMiddleware is added after routers - convention is usually to add middleware first."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only test)", "frontend": "100% (6/6 scenarios)"},
+  "test_credentials": "Used from /app/memory/test_credentials.md - super_admin admin@kingswellinstitute.uk, officer officer.test@kingswellinstitute.uk, student alice.wonder@example.com. All valid.",
+  "seed_data_creation": "None. Only mutated student id=3 phone number temporarily and reset it back to the original value 1234567890.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The FastAPI catch-all proxy at /app/backend/server.py (lines 78-108) transparently forwards every /api/* request (except /api/ and /api/status stubs) from port 8001 to the PHP backend on 127.0.0.1:8090, preserving method/headers/cookies/query-string/body and relaying response headers including multiple Set-Cookie. Verified end-to-end (login, session, CSRF-protected PUT) via the real external preview URL. If future testing hits any /api/* endpoint through the external URL and gets unexpected 404s, first verify the PHP Apache is running on 8090 (supervisor) and re-check this proxy is intact.",
+  "rca_of_the_issue": "Platform's Kubernetes ingress hardcodes /api-prefixed traffic to FastAPI on port 8001, but this project's real backend is PHP/Apache on port 8090. Previous testing_agents hit http://localhost:3000 which used webpack devServer's own /api proxy pointed straight to 8090, bypassing the ingress and hiding the mismatch. Fix (already applied by main agent): a FastAPI catch-all route in server.py that reverse-proxies /api/* to 127.0.0.1:8090 via httpx, forwarding method/headers/cookies/body and relaying response including multi-value Set-Cookie. Testing above confirms auth, session persistence, role-based redirects, GETs with query params, and CSRF-protected PUTs all work through the proxy on the external URL."
+}

@@ -1,0 +1,122 @@
+{
+  "project_name": "Kingswell Institute Admin System",
+  "theme_archetype": "ARCHETYPE 5: LUXURY & INSTITUTIONAL HERITAGE (Premium British Educational Institute)",
+  "aesthetic_direction": "Established, credible, elegant and modern British/International educational institute aesthetic. Restrained institutional palette, warm ivory/cream surfaces, deep royal navy structure, and subtle brass/gold accents. Sharp subtle geometry, refined borders, clear typography hierarchy.",
+  "colors": {
+    "palette_summary": "Deep Royal Navy (#0A192F / #112240) structure, Ivory/Cream (#FAF8F5 / #F4F0E8) background surfaces, Rich Gold/Brass (#C59B27 / #B8860B) accents, Slate/Navy text tones.",
+    "css_variables": {
+      "root": {
+        "--background": "38 33% 97%",
+        "--foreground": "218 48% 12%",
+        "--card": "38 30% 99%",
+        "--card-foreground": "218 48% 12%",
+        "--popover": "0 0% 100%",
+        "--popover-foreground": "218 48% 12%",
+        "--primary": "218 54% 15%",
+        "--primary-foreground": "40 50% 96%",
+        "--secondary": "38 20% 92%",
+        "--secondary-foreground": "218 48% 18%",
+        "--muted": "38 15% 92%",
+        "--muted-foreground": "218 15% 42%",
+        "--accent": "43 65% 45%",
+        "--accent-foreground": "218 54% 12%",
+        "--destructive": "0 72% 45%",
+        "--destructive-foreground": "0 0% 98%",
+        "--border": "38 18% 86%",
+        "--input": "38 18% 86%",
+        "--ring": "43 65% 45%",
+        "--radius": "0.375rem"
+      },
+      "dark": {
+        "--background": "218 50% 8%",
+        "--foreground": "38 25% 95%",
+        "--card": "218 45% 11%",
+        "--card-foreground": "38 25% 95%",
+        "--popover": "218 45% 11%",
+        "--popover-foreground": "38 25% 95%",
+        "--primary": "43 60% 50%",
+        "--primary-foreground": "218 50% 8%",
+        "--secondary": "218 35% 18%",
+        "--secondary-foreground": "38 25% 95%",
+        "--muted": "218 30% 18%",
+        "--muted-foreground": "218 15% 68%",
+        "--accent": "43 60% 50%",
+        "--accent-foreground": "218 50% 8%",
+        "--destructive": "0 62% 40%",
+        "--destructive-foreground": "0 0% 98%",
+        "--border": "218 30% 20%",
+        "--input": "218 30% 20%",
+        "--ring": "43 60% 50%"
+      }
+    },
+    "brand_accents": {
+      "gold_primary": "#C59B27",
+      "gold_hover": "#A8821F",
+      "navy_dark": "#0A192F",
+      "navy_surface": "#112240",
+      "ivory_bg": "#FAF8F5",
+      "card_surface": "#FFFFFF",
+      "border_subtle": "#E6E1D7"
+    }
+  },
+  "typography": {
+    "pairing": "Cinzel / Playfair Display / Cormorant Garamond for Headings (Serif / Academic Heritage) + Inter / Plus Jakarta Sans for Body Data & UI",
+    "fonts": {
+      "heading": "'Playfair Display', 'Cormorant Garamond', Georgia, serif",
+      "body": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "mono": "'JetBrains Mono', 'Fira Code', monospace"
+    },
+    "hierarchy": {
+      "h1": "text-3xl sm:text-4xl font-serif font-bold text-slate-900 tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-serif font-semibold text-slate-900 tracking-tight",
+      "h3": "text-xl sm:text-2xl font-serif font-medium text-slate-900",
+      "subheading": "text-sm font-medium uppercase tracking-widest text-amber-800/80",
+      "body": "text-sm text-slate-700 leading-relaxed",
+      "caption": "text-xs text-slate-500 font-sans"
+    }
+  },
+  "spacing_and_layout": {
+    "density": "Moderate-high institutional density with generous section padding (p-6 to p-8), defined grid boundaries, 1px subtle brass/beige borders, crisp concentric corners.",
+    "radius_rule": "rounded-md (6px) or rounded-sm (4px) maximum. Strictly avoid excessive rounded pill cards (rounded-2xl/3xl forbidden for admin containers).",
+    "bento_grid": "Mode B High-Density Dashboard Grid: grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
+  },
+  "components_redesign": {
+    "AppLayout": {
+      "sidebar": "Deep Royal Navy background (#0A192F), fine 1px gold trim border-r (#C59B27/20), institutional header crest/logo with subtle gold icon badge, active item highlighted with gold left accent border and warm dark-blue background.",
+      "topbar": "Warm Ivory/White surface, subtle bottom border (#E6E1D7), clear user identity pill with role badge, clean logout trigger with tooltip.",
+      "page_container": "Ivory background (#FAF8F5) with structured content spacing (max-w-7xl mx-auto p-6 md:p-8)."
+    },
+    "PageHeader": {
+      "style": "Academic serif page title with gold sub-line accent, muted description, and primary brass/navy CTA button."
+    },
+    "DashboardPage": {
+      "stat_cards": "Ivory/White solid card background with subtle gold hover glow, top border gold accent line (border-t-2 border-amber-600/40), high-contrast metric typography (text-3xl font-bold font-serif), contextual metric labels."
+    },
+    "ExaminationsListPage": {
+      "filters": "Refined select inputs with warm background and crisp focus rings.",
+      "table": "Institutional data table: navy header text with ivory background, alternating light row hover states, crisp borders, gold/navy detail action links."
+    },
+    "ExaminationDetailPage": {
+      "tabs": "Classic underline tab list with brass highlight bar (border-b-2 border-amber-600) for active tab, high clarity tab contents for Subjects, Registrations, Results."
+    },
+    "StatusBadge": {
+      "styling": "Restrained semantic badges with border trim: active/valid/completed = emerald background with deep green text; scheduled/pending = amber background with dark brown text; rejected/cancelled = rose background with dark red text."
+    }
+  },
+  "motion_and_interactions": {
+    "hover_states": "Subtle 150ms ease-in-out transitions, gentle background lift without disruptive layout shifts.",
+    "reduced_motion": "Respect prefers-reduced-motion for all CSS and motion animations."
+  },
+  "testing_attributes": {
+    "rule": "All interactive and key informational elements MUST retain or add data-testid attributes using kebab-case role-based naming (e.g., data-testid='examination-create-button')."
+  },
+  "instructions_to_main_agent": [
+    "Apply deep navy (#0A192F), ivory (#FAF8F5), and gold/brass (#C59B27) CSS variable tokens inside /app/frontend/src/index.css.",
+    "Update tailwind.config.js to include font families (Playfair Display / Serif) and institutional color tokens if needed.",
+    "Redesign AppLayout.jsx with the deep navy sidebar, gold accents, and warm topbar shell.",
+    "Redesign PageHeader.jsx and StatusBadge.jsx for consistent academic styling.",
+    "Redesign DashboardPage.jsx with institutional stat tiles and gold border accents.",
+    "Redesign ExaminationsListPage.jsx and ExaminationDetailPage.jsx (plus its sub-tabs and dialogs) according to the new visual system.",
+    "Ensure all data-testid attributes remain intact for end-to-end automated testing."
+  ]
+}
