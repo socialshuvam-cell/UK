@@ -10,8 +10,13 @@ use App\Controllers\CourseSessionController;
 use App\Controllers\CourseSubjectController;
 use App\Controllers\DiagnosticsController;
 use App\Controllers\EnrollmentController;
+use App\Controllers\ExaminationController;
+use App\Controllers\ExaminationSubjectController;
+use App\Controllers\ExamRegistrationController;
 use App\Controllers\HealthController;
 use App\Controllers\InstitutionController;
+use App\Controllers\MarksController;
+use App\Controllers\ResultController;
 use App\Controllers\StudentController;
 use App\Core\Request;
 use App\Core\Router;
@@ -81,5 +86,41 @@ $router->post('/api/me/documents', [StudentController::class, 'meUploadDocument'
 $router->get('/api/enrollments', [EnrollmentController::class, 'index'], ['auth', 'permission:enrollments.manage']);
 $router->get('/api/enrollments/{id}', [EnrollmentController::class, 'show'], ['auth', 'permission:enrollments.manage']);
 $router->put('/api/enrollments/{id}', [EnrollmentController::class, 'update'], ['auth', 'csrf', 'permission:enrollments.manage']);
+
+// Examinations
+$router->get('/api/examinations', [ExaminationController::class, 'index'], ['auth', 'permission:exams.manage']);
+$router->get('/api/examinations/{id}', [ExaminationController::class, 'show'], ['auth', 'permission:exams.manage']);
+$router->post('/api/examinations', [ExaminationController::class, 'store'], ['auth', 'csrf', 'permission:exams.manage']);
+$router->put('/api/examinations/{id}', [ExaminationController::class, 'update'], ['auth', 'csrf', 'permission:exams.manage']);
+$router->delete('/api/examinations/{id}', [ExaminationController::class, 'destroy'], ['auth', 'csrf', 'permission:exams.manage']);
+
+// Examination subjects (nested under an examination)
+$router->get('/api/examinations/{examId}/subjects', [ExaminationSubjectController::class, 'index'], ['auth', 'permission:exams.manage']);
+$router->post('/api/examinations/{examId}/subjects', [ExaminationSubjectController::class, 'store'], ['auth', 'csrf', 'permission:exams.manage']);
+$router->put('/api/examinations/{examId}/subjects/{subjectId}', [ExaminationSubjectController::class, 'update'], ['auth', 'csrf', 'permission:exams.manage']);
+$router->delete('/api/examinations/{examId}/subjects/{subjectId}', [ExaminationSubjectController::class, 'destroy'], ['auth', 'csrf', 'permission:exams.manage']);
+
+// Exam registrations (student exam registration, hall ticket, centre assignment)
+$router->get('/api/examinations/{examId}/registrations', [ExamRegistrationController::class, 'index'], ['auth', 'permission:exam_registrations.manage']);
+$router->post('/api/examinations/{examId}/registrations', [ExamRegistrationController::class, 'store'], ['auth', 'csrf', 'permission:exam_registrations.manage']);
+$router->get('/api/exam-registrations/{id}', [ExamRegistrationController::class, 'show'], ['auth', 'permission:exam_registrations.manage']);
+$router->put('/api/exam-registrations/{id}', [ExamRegistrationController::class, 'update'], ['auth', 'csrf', 'permission:exam_registrations.manage']);
+$router->get('/api/exam-registrations/{id}/hall-ticket', [ExamRegistrationController::class, 'hallTicket'], ['auth', 'permission:exam_registrations.manage']);
+
+// Marks
+$router->get('/api/exam-registrations/{regId}/marks', [MarksController::class, 'index'], ['auth', 'permission:marks.enter']);
+$router->post('/api/exam-registrations/{regId}/marks', [MarksController::class, 'store'], ['auth', 'csrf', 'permission:marks.enter']);
+$router->put('/api/marks/{id}/verify', [MarksController::class, 'verify'], ['auth', 'csrf', 'permission:marks.verify']);
+
+// Results
+$router->post('/api/exam-registrations/{regId}/compute-result', [ResultController::class, 'compute'], ['auth', 'csrf', 'permission:results.publish']);
+$router->put('/api/results/{id}/publish', [ResultController::class, 'publish'], ['auth', 'csrf', 'permission:results.publish']);
+$router->get('/api/examinations/{examId}/results', [ResultController::class, 'index'], ['auth', 'permission:results.publish']);
+
+// Student self-service — exams/results
+$router->get('/api/me/exam-registrations', [ExamRegistrationController::class, 'meIndex'], ['auth']);
+$router->get('/api/me/exam-registrations/{id}/hall-ticket', [ExamRegistrationController::class, 'meHallTicket'], ['auth']);
+$router->get('/api/me/results', [ResultController::class, 'meIndex'], ['auth']);
+$router->get('/api/me/results/{id}', [ResultController::class, 'meShow'], ['auth']);
 
 $router->dispatch(Request::fromGlobals());

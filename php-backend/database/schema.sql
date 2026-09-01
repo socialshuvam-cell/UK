@@ -662,6 +662,7 @@ INSERT INTO roles (slug, name, is_system, description) VALUES
 INSERT INTO counters (sequence_key, scope_key, year, current_value, padding, format_template) VALUES
  ('REG',  '',   2026, 0, 6, 'KWI/REG/{year}/{seq}'),
  ('ADM',  '',   2026, 0, 6, 'KWI/ADM/{year}/{seq}'),
+ ('EXAM', '',   2026, 0, 6, 'KWI/EXAM/{year}/{seq}'),
  ('CERT', '',   2026, 0, 6, 'KWI/CERT/{year}/{seq}'),
  ('DIP',  '',   2026, 0, 6, 'KWI/DIP/{year}/{seq}'),
  ('DEG',  '',   2026, 0, 6, 'KWI/DEG/{year}/{seq}'),

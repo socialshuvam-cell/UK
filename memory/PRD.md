@@ -213,24 +213,77 @@ follow-ups applied after the report (email format validation, users-email-collis
 and self-verified via curl. Regression suite: `tests/test_admissions_phase4.py` (combined
 Phase 2+3+4: 94 tests).
 
+### Phase 5 — Examinations & Results (complete 2026-09-01, awaiting user approval to start Phase 6)
+- `app/Controllers/ExaminationController.php` — full CRUD; validates `course_id` exists and
+  `session_id` belongs to that course; `exam_code` allocated via `Counter::next($pdo, 'EXAM')`
+  (format `KWI/EXAM/{year}/{seq}`, client value ignored); delete blocked 409 if subjects or
+  registrations exist.
+- `app/Controllers/ExaminationSubjectController.php` — nested CRUD under an examination;
+  `course_subject_id` must belong to the exam's course (422 otherwise); duplicate add blocked
+  409; `pass_marks<=max_marks` enforced (falls back to the course_subject's own max/pass if
+  omitted); delete blocked 409 if marks already recorded for that subject.
+- `app/Controllers/ExamRegistrationController.php` — registers an `enrollment_id` for an
+  exam; eligibility guard: enrollment must match the exam's `course_id`+`session_id` AND be
+  `status='active'` (422 otherwise), duplicate student registration blocked 409;
+  `hall_ticket_number` allocated via `Counter::next($pdo, 'HT')` (`KWI/HT/{year}/{seq}`);
+  `hallTicket()`/`meHallTicket()` assemble exam+student+subjects into one response; student
+  self-service `meIndex`/`meHallTicket` scoped to `Auth::requireStudentId()`.
+- `app/Controllers/MarksController.php` — per-(registration, examination_subject) upsert via
+  `ON DUPLICATE KEY UPDATE` (uses uniquely suffixed placeholders `:marks2`/`:absent2`/etc. —
+  no HY093 risk); re-entering marks resets `verified_by`/`verified_at` to NULL;
+  `marks_obtained` required 0..max_marks unless `is_absent=true`; `verify()` sets
+  `verified_by`/`verified_at`.
+- `app/Controllers/ResultController.php` — `compute()` requires marks for every
+  `examination_subject` of the exam (409 if any missing), sums obtained/max, computes
+  percentage + grade (`A+/A/B+/B/C/D/F` at 90/80/70/60/50/40 thresholds), pass/fail (fails on
+  `is_absent` OR `obtained<pass_marks` on any subject); upsertable via
+  `UNIQUE(exam_registration_id)` on `results`. `publish()` sets `published_at`/`published_by`,
+  409 if already published or if `result_status` is still `pending` (never computed). Student
+  self-service `meIndex`/`meShow` only return `published_at IS NOT NULL` rows for the caller's
+  own `student_id`.
+- Permissions added to `seed.php`: `exams.manage`, `exam_registrations.manage`, `marks.enter`,
+  `marks.verify`, `results.publish` — all granted to `super_admin` (`*`) and
+  `examination_officer`; `results.view_self` (already existed) covers student self-service.
+- Routes added in `public_html/api/index.php` under the above permission slugs, `csrf` on all
+  writes; `/api/me/exam-registrations`, `/api/me/exam-registrations/{id}/hall-ticket`,
+  `/api/me/results`, `/api/me/results/{id}` for student self-service (`auth` only, ownership
+  enforced in-controller).
+- Fixture note: `course_subjects` table was empty going into Phase 5 (Phase 3 fixtures never
+  added any) — main agent created 2 subjects (CMS101, CMS102) under course 16 via the existing
+  Phase 3 API as test fixtures. These plus exam id=1 (`KWI/EXAM/2026/000001`), exam_registration
+  id=1 (Alice Wonder, hall ticket `KWI/HT/2026/000001`), and result id=1 (published, fail) now
+  exist permanently in the local DB — keep intact for Phase 6.
+
+**Tested (2026-09-01, self-test via curl + testing_agent, 146/146 passing, 0 critical/minor
+issues):** exam CRUD + auto exam_code, subject dup/wrong-course/pass>max 422/409s, delete
+blocked by dependents (exam and subject level), registration eligibility (inactive/wrong
+course-session 422, duplicate 409), hall-ticket assembly, marks range validation, upsert
+clears verification, `is_absent` flow, marks verify, compute-result missing-marks 409,
+grade/pass-fail calculation, publish idempotency 409, RBAC 403 for admission_officer/student
+on all exam-management routes, 401 unauthenticated, 403 missing/wrong CSRF, `/me/*`
+self-scoping (Alice sees only her own, unlinked student gets 403), full Phase 2-4 regression
+(94 tests) all still passing. Regression suite: `tests/test_examinations_phase5.py`. Report:
+`/app/test_reports/iteration_4.json`.
+
 ## Prioritized backlog (from ARCHITECTURE.md §11, unchanged)
-- **P1 — Phase 5:** Examinations (exams, exam subjects, registrations + hall tickets, marks
-  entry/verification, result computation & publish).
 - **P1 — Phase 6:** Documents & Verification (template engine, unified issuance for all 8
   doc types, QR + tokens, PDF generation, public `/verify/{token}`, revoke/reissue flows).
 - **P2 — Phase 7:** Finance (manual payments + receipts) & notifications, dashboards/reports.
 - **P2 — Phase 8:** Hardening + Hostinger deployment guide/checklist, final relative-API build.
 
 ## Critical rules for next agent
-- **Do not start Phase 5 or write further app code until the user explicitly approves** the
-  Phase 4 report.
+- **Do not start Phase 6 or write further app code until the user explicitly approves** the
+  Phase 5 report.
 - `DiagnosticsController` + `/api/diagnostics/*` routes are Phase-2-only scaffolding for RBAC
   testing — fine to leave, but don't build real features on top of them.
 - Canonical test accounts (see `/app/memory/test_credentials.md`): super_admin, student.test
   (unlinked), officer.test, **plus now Alice Wonder** (student_id=3, alice.wonder@example.com,
   reg `KWI/REG/2026/000001`, 2 enrollments in course 16/CMS) — keep all intact for Phase 5.
-- Fixture data for Phase 5 to build on: institution id=11 (KWI-MAIN) linked to course id=16
-  (CMS), sessions id=4 (Autumn 2026, active) and id=5 (Spring 2027, upcoming).
+- Fixture data for Phase 6 to build on: institution id=11 (KWI-MAIN) linked to course id=16
+  (CMS), sessions id=4 (Autumn 2026) and id=5 (Spring 2027); course_subjects id=6/7 (CMS101,
+  CMS102); examination id=1 (`KWI/EXAM/2026/000001`); exam_registration id=1 (Alice, hall
+  ticket `KWI/HT/2026/000001`); result id=1 (published, fail, percentage 57.50, grade C) —
+  useful as the "existing result to attach a marksheet/transcript document to" in Phase 6.
 - PDO here has `ATTR_EMULATE_PREPARES=false` — never reuse the same named placeholder twice
   in one query (this bug pattern has recurred 3 times across phases — always grep for it
   after writing any multi-condition/multi-subquery SQL string).

@@ -1,0 +1,26 @@
+{
+  "summary": "Phase 5 (Examinations/Subjects/Registrations/Marks/Results) backend end-to-end + edge case testing complete, plus full Phase 2-4 regression. 52 new Phase 5 tests + 94 regression tests = 146/146 passing. Independently re-verified every scenario the main agent self-tested (exam CRUD with auto exam_code, subject dup 409, pass_marks>max 422, subject wrong course 422, delete subject with marks 409, delete exam with dependents 409, registration eligibility - completed enrollment 422 / course-session mismatch 422 / duplicate 409, hall-ticket assembly, marks out-of-range 422, marks upsert clears verification, is_absent flow, marks verify, publish idempotency 409, RBAC 403 for officer & student on all 16 exam-management endpoints, unauth 401, missing CSRF 403, wrong CSRF 403, /me/* self-service scoping, unlinked-student 403). Also verified client-supplied exam_code is ignored (Counter overrides it), and re-computing an existing result updates the same row (UPSERT via UNIQUE(exam_registration_id)). No bugs found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/php-backend/tests/test_examinations_phase5.py",
+    "/app/test_reports/pytest/phase5_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MarksController.store correctly disambiguates duplicated named placeholders in ON DUPLICATE KEY UPDATE by using :marks2/:absent2/:entered_by2 — safe with ATTR_EMULATE_PREPARES=false. No HY093 risk found in Phase 5 SQL.",
+    "ExaminationController.index builds WHERE clauses from a fixed whitelist {status, course_id, session_id} — no SQL injection risk.",
+    "Minor: ExaminationSubjectController.store allows a request to omit max_marks/pass_marks and falls back to the course_subject defaults; pass_marks<=max_marks comparison is done only against those resolved values, which is correct.",
+    "Minor: ResultController.compute treats is_absent as an automatic fail regardless of marks_obtained — matches spec ('fails if is_absent OR obtained<pass_marks on ANY subject').",
+    "Minor: Phase 5 controllers consistently exclude no _id fields (MySQL) and never call Response::json with mongo artefacts — no serialization issues.",
+    "Suggestion (not a bug): Result.compute could reject when the exam_registration's status is 'debarred' or 'absent' at exam-registration level, but current behavior (compute regardless) matches how marks_absent drives fail — acceptable per spec."
+  ],
+  "updated_files": ["/app/php-backend/tests/test_examinations_phase5.py"],
+  "success_rate": {"backend": "100% (146/146 total: 52 Phase 5 + 94 regression)"},
+  "test_credentials": "See /app/memory/test_credentials.md — used admin (super_admin), officer.test (admission_officer), student.test (unlinked student), alice.wonder (linked student_id=3).",
+  "seed_data_creation": "No new persistent seed data. Tests create temporary examinations (TEST_Phase5_ExamB/C/D/E/F/MissingMarks) via API and delete them in the same test to avoid pollution. Existing fixtures (exam id=1, reg id=1, marks 1&2, result id=1) are preserved and still valid for future testing agents.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Existing DB state after this run: exam id=1 (KWI/EXAM/2026/000001, status=scheduled, seat_number='A-42', exam_center='Kingswell Main Hall'), 2 examination_subjects (ids 1,2), exam_registration id=1 (Alice, hall_ticket KWI/HT/2026/000001), marks 1 (subj 1, 88.00, unverified after upsert test) and marks 2 (subj 2, 30.00, verified), result id=1 (published, fail). Counter sequences: EXAM likely at ~6, HT at 1. Alice's enrollment 2 (session 5) is used; enrollment 1 (session 4) is completed. All 5 Phase 5 permissions (exams.manage, exam_registrations.manage, marks.enter, marks.verify, results.publish) belong exclusively to super_admin and examination_officer roles (officer/student get 403). Continue using /app/php-backend/tests/test_examinations_phase5.py plus prior phase tests for regression.",
+  "rca of the issue": "N/A — no defects encountered."
+}

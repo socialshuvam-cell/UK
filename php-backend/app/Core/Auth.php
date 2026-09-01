@@ -72,4 +72,13 @@ final class Auth
     {
         return new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
     }
+
+    // Self-service guard: 403 if the authenticated user has no linked student record.
+    public static function requireStudentId(Request $request): int
+    {
+        if (empty($request->user['student_id'])) {
+            Response::json(['error' => 'This account is not linked to a student record'], 403);
+        }
+        return (int) $request->user['student_id'];
+    }
 }
