@@ -1,0 +1,107 @@
+digraph KingswellERD {
+  graph [rankdir=LR, splines=true, nodesep=0.55, ranksep=1.3, bgcolor="#ffffff",
+         fontname="Helvetica", label="Kingswell Institute — Entity Relationship Diagram (Phase 0)",
+         labelloc="t", fontsize=22];
+  node  [shape=record, fontname="Helvetica", fontsize=10, style="filled", color="#334155"];
+  edge  [color="#64748b", arrowsize=0.8, fontname="Helvetica", fontsize=8];
+
+  // ---------- MODULE COLORS ----------
+  // users/rbac = blue, academics = green, students = amber,
+  // admissions = orange, exams = purple, documents = red, system = gray
+
+  // RBAC
+  roles            [fillcolor="#dbeafe", label="{roles|id (PK)\lslug (UQ)\lname\lis_system}"];
+  permissions      [fillcolor="#dbeafe", label="{permissions|id (PK)\lslug (UQ)\lmodule}"];
+  role_permissions [fillcolor="#dbeafe", label="{role_permissions|role_id (FK)\lpermission_id (FK)}"];
+  users            [fillcolor="#dbeafe", label="{users|id (PK)\luuid (UQ)\lrole_id (FK)\linstitution_id (FK)\lstudent_id (FK)\lemail (UQ)\lpassword_hash\lfailed_login_attempts\llocked_until}"];
+  user_sessions    [fillcolor="#dbeafe", label="{user_sessions|id (PK)\luser_id (FK)\ltoken_hash (UQ)\lcsrf_token\lexpires_at}"];
+  login_attempts   [fillcolor="#dbeafe", label="{login_attempts|id (PK)\lidentifier\lip_address\lattempt_type\lsuccess}"];
+  audit_logs       [fillcolor="#dbeafe", label="{audit_logs|id (PK)\luser_id (FK)\laction\lentity_type\lentity_id\lold/new_values}"];
+
+  // ACADEMICS
+  institutions     [fillcolor="#dcfce7", label="{institutions|id (PK)\lcode (UQ)\lname\ltype}"];
+  courses          [fillcolor="#dcfce7", label="{courses|id (PK)\lcode (UQ)\lname\llevel}"];
+  course_subjects  [fillcolor="#dcfce7", label="{course_subjects|id (PK)\lcourse_id (FK)\lsubject_code\lmax_marks\lpass_marks}"];
+  course_sessions  [fillcolor="#dcfce7", label="{course_sessions|id (PK)\lcourse_id (FK)\lsession_name\lacademic_year}"];
+
+  // STUDENTS
+  students         [fillcolor="#fef9c3", label="{students|id (PK)\luuid (UQ)\lregistration_number (UQ)\lname\lphoto_path\lstatus}"];
+  student_documents[fillcolor="#fef9c3", label="{student_documents|id (PK)\lstudent_id (FK)\ldoc_type\lfile_path}"];
+
+  // ADMISSIONS
+  admissions       [fillcolor="#ffedd5", label="{admissions|id (PK)\ladmission_number (UQ)\lstudent_id (FK)\lcourse_id (FK)\lsession_id (FK)\lstatus}"];
+
+  // ENROLLMENTS
+  enrollments      [fillcolor="#fef9c3", label="{enrollments|id (PK)\lstudent_id (FK)\lcourse_id (FK)\lsession_id (FK)\lroll_number (UQ)\ladmission_id (FK)}"];
+
+  // EXAMS
+  examinations        [fillcolor="#ede9fe", label="{examinations|id (PK)\lexam_code (UQ)\lcourse_id (FK)\lsession_id (FK)\lstatus}"];
+  examination_subjects[fillcolor="#ede9fe", label="{examination_subjects|id (PK)\lexamination_id (FK)\lcourse_subject_id (FK)\lmax_marks}"];
+  exam_registrations  [fillcolor="#ede9fe", label="{exam_registrations|id (PK)\lexamination_id (FK)\lstudent_id (FK)\lenrollment_id (FK)\lhall_ticket_number (UQ)}"];
+  marks               [fillcolor="#ede9fe", label="{marks|id (PK)\lexam_registration_id (FK)\lexamination_subject_id (FK)\lmarks_obtained\lgrade}"];
+  results             [fillcolor="#ede9fe", label="{results|id (PK)\lexam_registration_id (FK)\lexamination_id (FK)\lstudent_id (FK)\lresult_status}"];
+
+  // DOCUMENTS
+  document_templates    [fillcolor="#fee2e2", label="{document_templates|id (PK)\ldoc_type\lhtml_layout\lfields_config}"];
+  documents             [fillcolor="#fee2e2", label="{documents|id (PK)\luuid (UQ)\ldocument_number (UQ)\ldoc_type\lstudent_id (FK)\lresult_id (FK)\ltemplate_id (FK)\lverification_token (UQ)\lstatus\lsuperseded_by (FK)}"];
+  document_signatories  [fillcolor="#fee2e2", label="{document_signatories|id (PK)\ldocument_id (FK)\lname\ldesignation}"];
+  document_verifications[fillcolor="#fee2e2", label="{document_verifications|id (PK)\ldocument_id (FK)\ltoken_used\lresult}"];
+
+  // SYSTEM
+  counters       [fillcolor="#e2e8f0", label="{counters|id (PK)\lsequence_key\lscope_key\lyear\lcurrent_value\lformat_template}"];
+  settings       [fillcolor="#e2e8f0", label="{settings|id (PK)\lsetting_key (UQ)\lsetting_value}"];
+  notifications  [fillcolor="#e2e8f0", label="{notifications|id (PK)\luser_id (FK)\ltype\lread_at}"];
+  payments       [fillcolor="#e2e8f0", label="{payments|id (PK)\lstudent_id (FK)\lenrollment_id (FK)\lamount\lpayment_method}"];
+
+  // ---------- RELATIONSHIPS ----------
+  roles -> role_permissions [label="1..*"];
+  permissions -> role_permissions [label="1..*"];
+  roles -> users [label="1..*"];
+  institutions -> users [label="0..*"];
+  students -> users [label="0..1"];
+  users -> user_sessions [label="1..*"];
+  users -> audit_logs [label="0..*"];
+
+  courses -> course_subjects [label="1..*"];
+  courses -> course_sessions [label="1..*"];
+
+  students -> student_documents [label="1..*"];
+  students -> admissions [label="0..*"];
+  courses -> admissions [label="1..*"];
+  course_sessions -> admissions [label="0..*"];
+  institutions -> admissions [label="0..*"];
+
+  students -> enrollments [label="1..*"];
+  courses -> enrollments [label="1..*"];
+  course_sessions -> enrollments [label="1..*"];
+  admissions -> enrollments [label="0..1"];
+  institutions -> enrollments [label="0..*"];
+
+  courses -> examinations [label="1..*"];
+  course_sessions -> examinations [label="1..*"];
+  examinations -> examination_subjects [label="1..*"];
+  course_subjects -> examination_subjects [label="1..*"];
+  examinations -> exam_registrations [label="1..*"];
+  students -> exam_registrations [label="1..*"];
+  enrollments -> exam_registrations [label="1..*"];
+  exam_registrations -> marks [label="1..*"];
+  examination_subjects -> marks [label="1..*"];
+  exam_registrations -> results [label="1..1"];
+  examinations -> results [label="1..*"];
+  students -> results [label="1..*"];
+
+  document_templates -> documents [label="0..*"];
+  students -> documents [label="1..*"];
+  results -> documents [label="0..*"];
+  enrollments -> documents [label="0..*"];
+  examinations -> documents [label="0..*"];
+  exam_registrations -> documents [label="0..*"];
+  documents -> document_signatories [label="1..*"];
+  documents -> document_verifications [label="0..*"];
+  documents -> documents [label="superseded_by"];
+
+  students -> payments [label="1..*"];
+  enrollments -> payments [label="0..*"];
+  admissions -> payments [label="0..*"];
+  users -> notifications [label="1..*"];
+}
