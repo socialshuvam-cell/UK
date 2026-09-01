@@ -44,6 +44,14 @@ final class Validator
         return $this;
     }
 
+    public function email(string $field): self
+    {
+        if (isset($this->data[$field]) && $this->data[$field] !== '' && filter_var($this->data[$field], FILTER_VALIDATE_EMAIL) === false) {
+            $this->errors[$field][] = "{$field} must be a valid email address";
+        }
+        return $this;
+    }
+
     public function fails(): bool
     {
         return count($this->errors) > 0;

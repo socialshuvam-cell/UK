@@ -8,6 +8,7 @@ final class Request
     public array $query;
     public array $body;
     public array $params = [];
+    public array $files = [];
     public ?array $user = null;
     public ?array $permissions = null;
     public ?int $sessionId = null;
@@ -40,6 +41,9 @@ final class Request
             $body = $_POST;
         }
 
-        return new self($method, $path, $_GET, $body);
+        $request = new self($method, $path, $_GET, $body);
+        $request->files = $_FILES;
+
+        return $request;
     }
 }

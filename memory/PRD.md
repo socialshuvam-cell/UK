@@ -163,9 +163,57 @@ PUT accept empty string without explicit rejection; no dedicated date-format val
 `start_date`/`end_date` yet — low risk for an internal admin API, can be added in Phase 8
 hardening if desired.
 
+### Phase 4 — Admissions → Students → Enrollment (complete 2026-09-01, awaiting user
+approval to start Phase 5)
+- `app/Core/Counter.php` — collision-safe number allocator (`SELECT...FOR UPDATE` + `UPDATE`
+  inside the caller's transaction if one is open, else its own); auto-bootstraps a counter row
+  for a new year from an existing template row for that `sequence_key`. Used for `ADM`, `REG`,
+  `ROLL` (scoped by course code) sequences — numbers are NEVER accepted from the client.
+- `app/Core/FileUpload.php` — MIME-sniff (finfo) + JPEG/PNG/PDF allowlist + 5MB limit +
+  random server-generated filename under `public_html/uploads/{type}/{yyyy}/{mm}/`.
+- `app/Controllers/AdmissionController.php`:
+  - `store()` — **public**, no auth. Validates course/institution-link/session, blocks
+    duplicate open applications (same email+course+session), stores free-form
+    previous-education/qualification info in `application_data` JSON, allocates `ADM` number.
+  - `review()` — `start_review`/`approve`/`reject`/`cancel` state machine on `admissions.status`
+    with strict from→to guards (409 on invalid transition), `admissions.review` permission.
+  - `enroll()` — atomic (single DB transaction): dedupes by applicant email (reuses an
+    existing `students` row + skips creating a second login instead of creating a duplicate
+    master record — **one student, many enrollments**, per requirement), else creates
+    `students` (REG number) + a `student`-role `users` login (random temp password returned
+    ONCE in the response, never stored in plaintext), then `enrollments` (ROLL number scoped
+    to course code). Requires `session_id` resolved (from the admission or the request body)
+    before allocating a roll number, since `enrollments.session_id` is NOT NULL. Guards:
+    duplicate enrollment (DB unique constraint → 409), email collision with an existing
+    non-student `users` row → 409 (added after code review, not silently 500).
+- `app/Controllers/StudentController.php` — staff CRUD (`students.view`/`students.manage`),
+  nested enrollments+documents in detail view, document upload; **self-service** `/api/me/*`
+  endpoints (`me`, `meEnrollments`, `meDocuments`, `meUploadDocument`) gated only by `auth` +
+  an internal check that the caller's `users.student_id` is set — enforces "students only see
+  their own records" without needing a dedicated permission slug.
+- `app/Controllers/EnrollmentController.php` — staff list/show/update (`enrollments.manage`),
+  status lifecycle (`active/completed/withdrawn/suspended`).
+- `Validator::email()` added (used on admission applicant email).
+- **Known bug pattern recurred + fixed** (3rd occurrence): PDO `EMULATE_PREPARES=false`
+  rejects reusing one named placeholder twice — hit again in `AdmissionController`'s
+  duplicate-check query and `StudentController`'s multi-field search; fixed with uniquely
+  suffixed placeholders. Confirmed via repo-wide grep no other instances remain.
+- File-permission fix: `public_html/uploads/` and `storage/logs/` must be owned/writable by
+  the Apache worker user (`www-data`), not just root — added to `deploy/setup_local_env.sh`.
+
+**Tested (2026-09-01, testing_agent, 41/41 pytest passed, 0 critical/minor issues):** public
+intake + validation + duplicate protection, full review state machine incl. 409 on invalid
+transitions, atomic enroll (number formats, temp-password login verified working end-to-end),
+critical dedup test (2nd admission for same email reuses the same `students` row, 2nd
+enrollment gets a new roll number, `credentials=null`), session_id-required-at-enroll-time,
+`/me/*` self-scoping + 403 for unlinked accounts + cross-student denial, document upload
+(success/reject-by-type/reject-by-doc_type/CSRF/random-filename-on-disk), staff CRUD +
+search, audit logs for every action, Phase 2/3 regression smoke. Two low-risk code-review
+follow-ups applied after the report (email format validation, users-email-collision guard)
+and self-verified via curl. Regression suite: `tests/test_admissions_phase4.py` (combined
+Phase 2+3+4: 94 tests).
+
 ## Prioritized backlog (from ARCHITECTURE.md §11, unchanged)
-- **P1 — Phase 4:** Admissions → Students → Enrollment (application intake, review/approve,
-  student master creation, REG+ROLL numbering, uploads, student portal login).
 - **P1 — Phase 5:** Examinations (exams, exam subjects, registrations + hall tickets, marks
   entry/verification, result computation & publish).
 - **P1 — Phase 6:** Documents & Verification (template engine, unified issuance for all 8
@@ -174,17 +222,20 @@ hardening if desired.
 - **P2 — Phase 8:** Hardening + Hostinger deployment guide/checklist, final relative-API build.
 
 ## Critical rules for next agent
-- **Do not start Phase 4 or write further app code until the user explicitly approves** the
-  Phase 3 report.
+- **Do not start Phase 5 or write further app code until the user explicitly approves** the
+  Phase 4 report.
 - `DiagnosticsController` + `/api/diagnostics/*` routes are Phase-2-only scaffolding for RBAC
   testing — fine to leave, but don't build real features on top of them.
-- 3 test accounts must stay in `users` table for future phases: super_admin, student.test,
-  officer.test (see `/app/memory/test_credentials.md`).
-- Academics tables (`institutions`, `courses`, `course_subjects`, `course_sessions`,
-  `institution_courses`) are intentionally EMPTY after Phase 3 testing — Phase 4 will create
-  real admissions/students/enrollments against them; don't assume any seeded rows exist.
+- Canonical test accounts (see `/app/memory/test_credentials.md`): super_admin, student.test
+  (unlinked), officer.test, **plus now Alice Wonder** (student_id=3, alice.wonder@example.com,
+  reg `KWI/REG/2026/000001`, 2 enrollments in course 16/CMS) — keep all intact for Phase 5.
+- Fixture data for Phase 5 to build on: institution id=11 (KWI-MAIN) linked to course id=16
+  (CMS), sessions id=4 (Autumn 2026, active) and id=5 (Spring 2027, upcoming).
 - PDO here has `ATTR_EMULATE_PREPARES=false` — never reuse the same named placeholder twice
-  in one query (use `:x1`, `:x2`, ... for repeated values).
+  in one query (this bug pattern has recurred 3 times across phases — always grep for it
+  after writing any multi-condition/multi-subquery SQL string).
+- `public_html/uploads/` and `storage/logs/` must stay owned/writable by `www-data`; if
+  permissions are lost after a pod restart, re-run `deploy/setup_local_env.sh`.
 - If any future phase needs to modify the schema further, propose it via `ask_human` first
   (established pattern this project follows) rather than changing `schema.sql` silently.
 - Never use Python/Node/MongoDB/Redis/Docker/Composer in `/app/php-backend`. Leave

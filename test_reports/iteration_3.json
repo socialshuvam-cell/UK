@@ -1,0 +1,35 @@
+{
+  "summary": "Phase 4 Admissions -> Students -> Enrollment backend tested end-to-end via pytest. 41/41 tests passed covering: public admission intake incl. validation & duplicate protection, review workflow with all transitions and 409 wrong-state errors, atomic enroll flow (student+user+enrollment creation, temp password login, dedup-by-email reusing same student), format checks for KWI/ADM, KWI/REG, KWI/26/CMS/#### numbers, session_id-required-at-enroll-time, /me/* self-service RBAC & 403 for un-linked account, cross-student staff endpoint blocking for student role, document upload (PNG success, TXT rejected, invalid doc_type 422, CSRF required, random server-generated filename verified on disk), staff student/enrollment CRUD & search, CSRF enforcement, audit_logs for all expected actions (incl. admission_submitted with user_id NULL), and Phase 2/3 regression smoke.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/php-backend/tests/test_admissions_phase4.py",
+    "/app/test_reports/pytest/phase4_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AdmissionController.enroll: PDOException handler catches 23000 and responds 'already enrolled' but the enrollments table's unique constraint on (student_id, course_id, session_id) is not verified in tests — main agent may want to add an explicit dedup test for enrolling the same student for same course+session twice. Test-wise not currently reachable via re-enroll since admission flips to 'enrolled' and cannot be re-enrolled from that state.",
+    "AdmissionController.store validates 'email' only for max length; a syntactically invalid email (e.g. 'notanemail') is silently accepted. Consider adding an email() validator for consistency with production data hygiene.",
+    "AdmissionController.enroll builds the student's users row using the applicant email — if there is ALREADY a users row with that email but no student_id (e.g. reused address of a staff account), the INSERT would fail with a unique constraint 500. Not currently protected against; low-probability but worth guarding.",
+    "StudentController.index search uses uniquely-suffixed placeholders bound to the same value (:search1/:search2/:search3) — correct workaround for ATTR_EMULATE_PREPARES=false. Same pattern applied in AdmissionController duplicate-check (:sid1/:sid2). No other placeholder-reuse instances found on grep.",
+    "Response::json is called from within controllers (not returned) via exit-inside-Response; works fine but keeps state coupled — consider throwing exceptions instead for cleaner controller code (non-blocking)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (41/41)",
+    "frontend": "N/A (backend-only phase)"
+  },
+  "test_credentials": "Canonical accounts from /app/memory/test_credentials.md used unchanged. Alice Wonder (student_id=3, alice.wonder@example.com / Iwt5CBibo5Xs) fixture intact. All TEST_*@example.com throwaway rows cleaned up by module-level teardown.",
+  "seed_data_creation": "No new persistent fixtures created. Throwaway admissions/students/users/enrollments/documents (email prefix 'TEST_') created and cleaned up in-place by the pytest module teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 4 is fully green. Fixture data preserved: institution 11 (KWI-MAIN), course 16 (CMS) linked, sessions 4 (Autumn 2026 active) and 5 (Spring 2027 upcoming). Alice Wonder student id=3 has 2+ enrollments now (rolls KWI/26/CMS/0001, /0002 plus one more from the successful enroll test — the dedup test increases counts too but only for TEST_ emails which get cleaned up). Reg counter is at KWI/REG/2026/000001 + N used numbers; ROLL counter KWI/26/CMS/#### advanced further from tests. Run Phase 5 exams against course 16 + student 3. Regression suites: tests/test_auth_phase2.py, test_academics_phase3.py, test_admissions_phase4.py — all pytest-based.",
+  "rca of the issue": "No bugs found in this phase. Main agent's pre-emptive fix for the SQLSTATE[HY093] placeholder-reuse pattern (in AdmissionController duplicate-check and StudentController search) is verified working — both endpoints exercised extensively without any 500s."
+}

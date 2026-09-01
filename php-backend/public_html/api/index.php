@@ -3,13 +3,16 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 2) . '/app/bootstrap.php';
 
+use App\Controllers\AdmissionController;
 use App\Controllers\AuthController;
 use App\Controllers\CourseController;
 use App\Controllers\CourseSessionController;
 use App\Controllers\CourseSubjectController;
 use App\Controllers\DiagnosticsController;
+use App\Controllers\EnrollmentController;
 use App\Controllers\HealthController;
 use App\Controllers\InstitutionController;
+use App\Controllers\StudentController;
 use App\Core\Request;
 use App\Core\Router;
 
@@ -53,5 +56,30 @@ $router->get('/api/courses/{courseId}/sessions', [CourseSessionController::class
 $router->post('/api/courses/{courseId}/sessions', [CourseSessionController::class, 'store'], ['auth', 'csrf', 'permission:sessions.manage']);
 $router->put('/api/courses/{courseId}/sessions/{sessionId}', [CourseSessionController::class, 'update'], ['auth', 'csrf', 'permission:sessions.manage']);
 $router->delete('/api/courses/{courseId}/sessions/{sessionId}', [CourseSessionController::class, 'destroy'], ['auth', 'csrf', 'permission:sessions.manage']);
+
+// Admissions — public application intake, staff review/approval workflow
+$router->post('/api/admissions', [AdmissionController::class, 'store']);
+$router->get('/api/admissions', [AdmissionController::class, 'index'], ['auth', 'permission:admissions.view']);
+$router->get('/api/admissions/{id}', [AdmissionController::class, 'show'], ['auth', 'permission:admissions.view']);
+$router->post('/api/admissions/{id}/review', [AdmissionController::class, 'review'], ['auth', 'csrf', 'permission:admissions.review']);
+$router->post('/api/admissions/{id}/enroll', [AdmissionController::class, 'enroll'], ['auth', 'csrf', 'permission:admissions.review']);
+
+// Students (staff-managed)
+$router->get('/api/students', [StudentController::class, 'index'], ['auth', 'permission:students.view']);
+$router->get('/api/students/{id}', [StudentController::class, 'show'], ['auth', 'permission:students.view']);
+$router->put('/api/students/{id}', [StudentController::class, 'update'], ['auth', 'csrf', 'permission:students.manage']);
+$router->get('/api/students/{id}/documents', [StudentController::class, 'documents'], ['auth', 'permission:students.view']);
+$router->post('/api/students/{id}/documents', [StudentController::class, 'uploadDocument'], ['auth', 'csrf', 'permission:students.manage']);
+
+// Student self-service ("me") — access limited to the caller's own linked student record
+$router->get('/api/me/student', [StudentController::class, 'me'], ['auth']);
+$router->get('/api/me/enrollments', [StudentController::class, 'meEnrollments'], ['auth']);
+$router->get('/api/me/documents', [StudentController::class, 'meDocuments'], ['auth']);
+$router->post('/api/me/documents', [StudentController::class, 'meUploadDocument'], ['auth', 'csrf']);
+
+// Enrollments (staff)
+$router->get('/api/enrollments', [EnrollmentController::class, 'index'], ['auth', 'permission:enrollments.manage']);
+$router->get('/api/enrollments/{id}', [EnrollmentController::class, 'show'], ['auth', 'permission:enrollments.manage']);
+$router->put('/api/enrollments/{id}', [EnrollmentController::class, 'update'], ['auth', 'csrf', 'permission:enrollments.manage']);
 
 $router->dispatch(Request::fromGlobals());
