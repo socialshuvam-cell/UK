@@ -13,6 +13,14 @@ final class InstitutionController
     private const TYPES = ['institution', 'centre'];
     private const STATUSES = ['active', 'inactive'];
 
+    // Public — no auth. Read-only listing for the public website.
+    public function publicIndex(): void
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->query("SELECT id, code, name, type, address, city, country, contact_email, contact_phone FROM institutions WHERE status = 'active' ORDER BY name ASC");
+        Response::json(['institutions' => $stmt->fetchAll()]);
+    }
+
     public function index(Request $request): void
     {
         $pdo = Database::connection();

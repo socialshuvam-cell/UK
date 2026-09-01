@@ -126,3 +126,30 @@ foreach ($defaultTemplates as [$docType, $name, $fieldsConfig]) {
 }
 
 echo "Document templates: {$templatesCreated} default template(s) created.\n";
+
+// White-label branding defaults (existing `settings` table). INSERT IGNORE so a
+// Super Admin's later edits via the Settings page are never overwritten by re-seeding.
+$defaultSettings = [
+    'institute_name'    => 'Kingswell Institute',
+    'tagline'           => 'Excellence in Academics, Examinations & Professional Advancement',
+    'logo_url'          => '/assets/kingswell-logo.png',
+    'contact_email'     => 'info@kingswellinstitute.uk',
+    'contact_phone'     => '+44 20 7946 0958',
+    'contact_address'   => '14 Regent Court, London, WC2N 5DU, United Kingdom',
+    'footer_text'       => 'Kingswell Institute is committed to academic rigour, transparent examinations and verifiable credentials.',
+    'established_year'  => '1998',
+    'social_facebook'   => '',
+    'social_twitter'    => '',
+    'social_linkedin'   => '',
+    'hero_heading'      => 'A Legacy of Academic Excellence',
+    'hero_subheading'   => 'Kingswell Institute delivers rigorous, internationally recognised programmes across admissions, examinations and verified credentialing.',
+    'about_text'        => 'For over two decades, Kingswell Institute has provided structured academic pathways, transparent examinations and verifiable documentation to students across our network of institutions and centres.',
+];
+$insertSetting = $pdo->prepare(
+    'INSERT IGNORE INTO settings (group_name, setting_key, setting_value, value_type) VALUES ("branding", :key, :value, "string")'
+);
+$settingsCreated = 0;
+foreach ($defaultSettings as $key => $value) {
+    $settingsCreated += $insertSetting->execute(['key' => $key, 'value' => $value]) ? $insertSetting->rowCount() : 0;
+}
+echo "Branding settings: {$settingsCreated} default value(s) created.\n";

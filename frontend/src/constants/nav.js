@@ -11,6 +11,7 @@ import {
   UserCircle,
   Ticket,
   Award,
+  SlidersHorizontal,
 } from "lucide-react";
 
 // Nav items appear only once their checkpoint's page exists. Extend this list
@@ -25,6 +26,7 @@ export const ADMIN_NAV = [
   { label: "Examinations", path: "/admin/examinations", icon: FileCheck2, permission: "exams.manage", testId: "nav-admin-examinations" },
   { label: "Documents", path: "/admin/documents", icon: FileText, permission: "documents.issue", testId: "nav-admin-documents" },
   { label: "Templates", path: "/admin/document-templates", icon: Settings, permission: "documents.templates.manage", testId: "nav-admin-templates" },
+  { label: "Site Settings", path: "/admin/settings", icon: SlidersHorizontal, permission: "settings.manage", testId: "nav-admin-settings" },
 ];
 
 export const PORTAL_NAV = [

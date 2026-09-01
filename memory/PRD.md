@@ -491,6 +491,52 @@ attempt incomplete (found by iteration_8 re-test), both now fully fixed and curl
   correctly, plus confirmed the underlying API works through the real external preview URL (important
   since real QR scans from printed documents will hit that exact URL, not localhost).
 
+### Public Kingswell Website / Homepage, complete 2026-09-01
+- User requested the full public marketing site at `/` (explicitly NOT a login page), while preserving
+  every authenticated route/API, plus a white-label settings mechanism so Super Admin can change
+  branding without code changes.
+- **Backend additions (additive only — no schema/migration changes, existing `settings` table and
+  `settings.manage` permission were already scaffolded in Phase 1-6 but unused until now)**:
+  - `SettingsController.php` (`publicIndex` — public, returns an allow-listed subset of branding keys;
+    `index`/`update` — `auth`+`permission:settings.manage`, full read/write, audit-logged).
+  - Routes: `GET /api/settings/public` (public), `GET/PUT /api/settings` (Super Admin only).
+  - Seeded 14 default branding keys (`group_name='branding'`) via `INSERT IGNORE` in `seed.php`
+    (idempotent — re-seeding never clobbers a Super Admin's later edits): institute_name, tagline,
+    logo_url, contact_email/phone/address, footer_text, established_year, social links, hero
+    heading/subheading, about_text.
+  - **New public read-only catalog endpoints** (genuine gap: `GET /api/courses` and
+    `GET /api/institutions` both require `auth`, but the public site needs to list active
+    courses/institutions to prospective visitors): added `publicIndex()` to `CourseController.php`
+    and `InstitutionController.php`, routes `GET /api/public/courses` / `GET /api/public/institutions`
+    (no auth, `status='active'` only, safe field subset). Existing authenticated
+    `/api/courses`/`/api/institutions` routes are unchanged.
+  - The public admissions "Apply Now" form uses the **existing** `POST /api/admissions` endpoint,
+    which was already public/unauthenticated from Phase 3 — no backend change needed there.
+  - Cleaned up one leftover `TEST_Proxy_Institution` fixture (set `status='inactive'`) so it doesn't
+    appear on the new public Institutions page.
+- **Frontend**: `PublicLayout.jsx` (navy sticky header with logo/nav/Student Login/Apply Now CTA,
+  responsive hamburger menu, footer with quick links + contact, all driven by `usePublicSettings()`
+  hook reading `/api/settings/public`), pages under `src/pages/public/`: `HomePage.jsx` (hero w/ Regent
+  St campus photo, about blurb, featured programmes from the public courses API, "why choose
+  Kingswell" w/ library photo, admissions/verify/portal CTAs), `AboutPage.jsx`, `CoursesPage.jsx`,
+  `InstitutionsPage.jsx`, `AdmissionsPage.jsx` (process steps + working apply form → real
+  `admission_number` confirmation screen). `SettingsPage.jsx` added under `/admin/settings`
+  (Super Admin only, `settings.manage`) to edit all branding/copy fields — this is the literal
+  "change without touching code" UI the white-label requirement asked for.
+- `App.js` restructured: `/` is now `HomePage` (no more login/dashboard redirect), `/about`,
+  `/courses`, `/admissions`, `/institutions` all wrapped in `PublicLayout`. `/login`, `/verify/:token`,
+  `/admin/*`, `/portal/*` are unchanged and still fully protected by `ProtectedRoute`.
+- **Notices/Announcements were intentionally omitted** from public nav — no such table/API exists in
+  the approved Phase 1-6 schema, and adding one would violate "do not modify the PHP/MySQL
+  architecture" for an unrequested feature; flagged to user rather than built.
+- Self-tested (lightweight, per user's explicit request — no testing_agent): screenshot-verified `/`
+  loads publicly with full nav, Courses/Institutions/Admissions pages fetch real data, a full public
+  admission application submitted successfully end-to-end (got back a real `KWI/ADM/...` number),
+  `/verify/:token` still works unaffected, `/login` unaffected, a logged-in student is still confined
+  to `/portal` and bounced away from `/admin`, mobile viewport (hamburger nav) renders cleanly, and
+  the white-label loop was verified live (edited tagline in `/admin/settings` → instantly reflected in
+  the public header, then reverted).
+
 ## Prioritized backlog (from ARCHITECTURE.md §11, unchanged)
 - **P2 — Phase 7:** Finance (manual payments + receipts) & notifications, dashboards/reports.
 - **P2 — Phase 8:** Hardening + Hostinger deployment guide/checklist, final relative-API build.

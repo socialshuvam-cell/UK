@@ -1,11 +1,17 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 import { ADMIN_NAV, PORTAL_NAV } from "@/constants/nav";
 import LoginPage from "@/pages/LoginPage";
 import VerifyPage from "@/pages/VerifyPage";
 import NotFoundPage from "@/pages/NotFoundPage";
+import HomePage from "@/pages/public/HomePage";
+import AboutPage from "@/pages/public/AboutPage";
+import CoursesPublicPage from "@/pages/public/CoursesPage";
+import InstitutionsPublicPage from "@/pages/public/InstitutionsPage";
+import AdmissionsPublicPage from "@/pages/public/AdmissionsPage";
 import AdminDashboardPage from "@/pages/admin/DashboardPage";
 import PortalDashboardPage from "@/pages/portal/DashboardPage";
 import AdmissionsListPage from "@/pages/admin/admissions/AdmissionsListPage";
@@ -23,21 +29,22 @@ import ExaminationDetailPage from "@/pages/admin/examinations/ExaminationDetailP
 import DocumentsListPage from "@/pages/admin/documents/DocumentsListPage";
 import DocumentDetailPage from "@/pages/admin/documents/DocumentDetailPage";
 import DocumentTemplatesPage from "@/pages/admin/documents/DocumentTemplatesPage";
+import SettingsPage from "@/pages/admin/SettingsPage";
 import "@/App.css";
-
-function RootRedirect() {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={user.role === "student" ? "/portal" : "/admin"} replace />;
-}
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<RootRedirect />} />
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/courses" element={<CoursesPublicPage />} />
+            <Route path="/admissions" element={<AdmissionsPublicPage />} />
+            <Route path="/institutions" element={<InstitutionsPublicPage />} />
+          </Route>
+
           <Route path="/login" element={<LoginPage />} />
           <Route path="/verify" element={<VerifyPage />} />
           <Route path="/verify/:token" element={<VerifyPage />} />
@@ -66,6 +73,7 @@ function App() {
             <Route path="documents" element={<DocumentsListPage />} />
             <Route path="documents/:id" element={<DocumentDetailPage />} />
             <Route path="document-templates" element={<DocumentTemplatesPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
 
           <Route

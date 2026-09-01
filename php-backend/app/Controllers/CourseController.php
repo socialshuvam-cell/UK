@@ -13,6 +13,14 @@ final class CourseController
     private const LEVELS = ['certificate', 'diploma', 'degree', 'other'];
     private const STATUSES = ['active', 'inactive'];
 
+    // Public — no auth. Read-only catalog listing for the public website.
+    public function publicIndex(): void
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->query("SELECT id, code, name, level, category, duration_months, description FROM courses WHERE status = 'active' ORDER BY name ASC");
+        Response::json(['courses' => $stmt->fetchAll()]);
+    }
+
     public function index(Request $request): void
     {
         $pdo = Database::connection();

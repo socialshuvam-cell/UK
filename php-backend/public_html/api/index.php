@@ -19,6 +19,7 @@ use App\Controllers\HealthController;
 use App\Controllers\InstitutionController;
 use App\Controllers\MarksController;
 use App\Controllers\ResultController;
+use App\Controllers\SettingsController;
 use App\Controllers\StudentController;
 use App\Controllers\VerificationController;
 use App\Core\Request;
@@ -38,6 +39,7 @@ $router->get('/api/diagnostics/admin-only', [DiagnosticsController::class, 'admi
 $router->get('/api/diagnostics/students-view', [DiagnosticsController::class, 'studentsView'], ['auth', 'permission:students.view']);
 
 // Institutions / centres
+$router->get('/api/public/institutions', [InstitutionController::class, 'publicIndex']);
 $router->get('/api/institutions', [InstitutionController::class, 'index'], ['auth']);
 $router->get('/api/institutions/{id}', [InstitutionController::class, 'show'], ['auth']);
 $router->post('/api/institutions', [InstitutionController::class, 'store'], ['auth', 'csrf', 'permission:institutions.manage']);
@@ -47,6 +49,7 @@ $router->post('/api/institutions/{id}/courses', [InstitutionController::class, '
 $router->delete('/api/institutions/{id}/courses/{courseId}', [InstitutionController::class, 'unlinkCourse'], ['auth', 'csrf', 'permission:institutions.manage']);
 
 // Courses
+$router->get('/api/public/courses', [CourseController::class, 'publicIndex']);
 $router->get('/api/courses', [CourseController::class, 'index'], ['auth']);
 $router->get('/api/courses/{id}', [CourseController::class, 'show'], ['auth']);
 $router->post('/api/courses', [CourseController::class, 'store'], ['auth', 'csrf', 'permission:courses.manage']);
@@ -149,5 +152,10 @@ $router->get('/api/me/issued-documents/{id}/download', [DocumentController::clas
 
 // Public verification — no auth, no permission (rate-limited inside the controller)
 $router->get('/api/verify/{token}', [VerificationController::class, 'show']);
+
+// Site settings / white-label branding (existing `settings` table)
+$router->get('/api/settings/public', [SettingsController::class, 'publicIndex']);
+$router->get('/api/settings', [SettingsController::class, 'index'], ['auth', 'permission:settings.manage']);
+$router->put('/api/settings', [SettingsController::class, 'update'], ['auth', 'csrf', 'permission:settings.manage']);
 
 $router->dispatch(Request::fromGlobals());
