@@ -151,8 +151,10 @@ CREATE TABLE courses (
   code            VARCHAR(20)  NOT NULL,             -- CMS, BBA... used in roll no
   name            VARCHAR(200) NOT NULL,
   level           ENUM('certificate','diploma','degree','other') NOT NULL DEFAULT 'certificate',
+  category        VARCHAR(100) NULL,                 -- free-text grouping, e.g. "Science", "Vocational"
   duration_months SMALLINT UNSIGNED NULL,
   total_credits   SMALLINT UNSIGNED NULL,
+  eligibility     TEXT         NULL,                 -- admission eligibility criteria (free text)
   description     TEXT         NULL,
   status          ENUM('active','inactive') NOT NULL DEFAULT 'active',
   created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -190,6 +192,18 @@ CREATE TABLE course_sessions (
   PRIMARY KEY (id),
   KEY idx_sessions_course (course_id),
   CONSTRAINT fk_sessions_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Many-to-many: which institutions/centres offer which courses.
+CREATE TABLE institution_courses (
+  institution_id  INT UNSIGNED NOT NULL,
+  course_id       INT UNSIGNED NOT NULL,
+  status          ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (institution_id, course_id),
+  KEY idx_instcourses_course (course_id),
+  CONSTRAINT fk_instcourses_institution FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_instcourses_course      FOREIGN KEY (course_id)      REFERENCES courses(id)      ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================================

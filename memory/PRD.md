@@ -115,8 +115,55 @@ enforcement (403 without/wrong token, 200 + session destroyed with correct token
 rows for login/login_failed/logout, bootstrap script idempotency. Regression suite saved at
 `/app/php-backend/tests/test_auth_phase2.py`.
 
+### Phase 3 — Academics & Institutions (complete 2026-09-01, awaiting user approval to start Phase 4)
+- **Schema additions (user-approved before implementation, additive only):** `courses.category`
+  VARCHAR(100) NULL, `courses.eligibility` TEXT NULL; new pivot table `institution_courses`
+  (institution_id, course_id, status, `ON DELETE CASCADE` both sides) for many-to-many
+  course↔centre offering. Applied to both `/app/database/schema.sql` and
+  `/app/php-backend/database/schema.sql` plus the live local DB (30 tables now).
+- `app/Core/Validator.php` — small reusable fluent validator (`required/maxLength/in/integer`,
+  `fails()/errors()`) now used by all Phase 3 controllers; will be reused in future phases.
+- `app/Controllers/InstitutionController.php` — full CRUD + `linkCourse`/`unlinkCourse`
+  (pivot management), delete blocked 409 if `admissions`/`enrollments` reference it.
+- `app/Controllers/CourseController.php` — full CRUD (code/name/level/category/duration/
+  credits/eligibility/description/status), detail response nests `subjects`, `sessions`,
+  `institutions`; delete blocked 409 if subjects/sessions/institution_courses/admissions/
+  enrollments reference it.
+- `app/Controllers/CourseSubjectController.php` — nested CRUD under a course; subject_code
+  unique per course; enforces `pass_marks <= max_marks`; delete blocked 409 if referenced by
+  `examination_subjects`.
+- `app/Controllers/CourseSessionController.php` — nested CRUD under a course; delete blocked
+  409 if referenced by enrollments/examinations/admissions.
+- Routes added in `public_html/api/index.php` under `permission:institutions.manage` /
+  `permission:courses.manage` / `permission:sessions.manage`, `csrf` on all writes.
+- **RBAC gap fixed:** Phase 2's `seed.php` had NOT granted `examination_officer` the
+  `courses.manage`/`sessions.manage` permissions that `ARCHITECTURE.md` §5's matrix requires
+  ("Courses/sessions" row includes Exam Officer). Corrected in `seed.php` and re-seeded
+  (idempotent `INSERT IGNORE`, no data loss).
+- Audit logging on every create/update/delete/link/unlink (`institution_created`,
+  `course_updated`, `course_subject_deleted`, `institution_course_linked`, etc.).
+- **Known bug found + fixed during self-test:** PDO with `ATTR_EMULATE_PREPARES=false`
+  rejects reusing the same named placeholder twice in one query (`SQLSTATE[HY093]`). All
+  "dependents count" queries (used before allowing a delete) were rewritten to use uniquely
+  numbered placeholders (`:id1`, `:id2`, ...) bound to the same value. Watch for this same
+  pattern in any future multi-subquery statement.
+
+**Tested (2026-09-01, testing_agent, 32/32 pytest passed, 0 critical/minor issues):**
+Institutions/Courses/Subjects/Sessions CRUD, validation (required fields, unique codes,
+enum values, pass_marks<=max_marks) returning 422 with field-keyed errors, institution↔course
+linking/unlinking visible from both sides, delete-blocked-by-dependents 409 + delete-succeeds
+after removing dependents, RBAC (super_admin all-access, admission_officer 403 on all
+academics routes, examination_officer 200 on courses/sessions but 403 on institutions), CSRF
+enforcement on every write route, audit log rows for every mutation. Regression suite at
+`/app/php-backend/tests/test_academics_phase3.py` (combined with Phase 2's suite: 53 tests
+total via `python -m pytest tests/ -v`).
+
+**Minor hardening notes from code review (not bugs, optional future polish):** enum fields on
+PUT accept empty string without explicit rejection; no dedicated date-format validator for
+`start_date`/`end_date` yet — low risk for an internal admin API, can be added in Phase 8
+hardening if desired.
+
 ## Prioritized backlog (from ARCHITECTURE.md §11, unchanged)
-- **P1 — Phase 3:** Academics (institutions, courses, subjects, sessions CRUD + scoping).
 - **P1 — Phase 4:** Admissions → Students → Enrollment (application intake, review/approve,
   student master creation, REG+ROLL numbering, uploads, student portal login).
 - **P1 — Phase 5:** Examinations (exams, exam subjects, registrations + hall tickets, marks
@@ -127,12 +174,19 @@ rows for login/login_failed/logout, bootstrap script idempotency. Regression sui
 - **P2 — Phase 8:** Hardening + Hostinger deployment guide/checklist, final relative-API build.
 
 ## Critical rules for next agent
-- **Do not start Phase 3 or write further app code until the user explicitly approves** the
-  Phase 2 report.
+- **Do not start Phase 4 or write further app code until the user explicitly approves** the
+  Phase 3 report.
 - `DiagnosticsController` + `/api/diagnostics/*` routes are Phase-2-only scaffolding for RBAC
   testing — fine to leave, but don't build real features on top of them.
 - 3 test accounts must stay in `users` table for future phases: super_admin, student.test,
   officer.test (see `/app/memory/test_credentials.md`).
+- Academics tables (`institutions`, `courses`, `course_subjects`, `course_sessions`,
+  `institution_courses`) are intentionally EMPTY after Phase 3 testing — Phase 4 will create
+  real admissions/students/enrollments against them; don't assume any seeded rows exist.
+- PDO here has `ATTR_EMULATE_PREPARES=false` — never reuse the same named placeholder twice
+  in one query (use `:x1`, `:x2`, ... for repeated values).
+- If any future phase needs to modify the schema further, propose it via `ask_human` first
+  (established pattern this project follows) rather than changing `schema.sql` silently.
 - Never use Python/Node/MongoDB/Redis/Docker/Composer in `/app/php-backend`. Leave
   `/app/backend` (FastAPI) and `/app/frontend` (CRA) untouched — they are not part of this project.
 - Do not modify `/app/database/schema.sql` or `/app/php-backend/database/schema.sql` unless a

@@ -1,0 +1,33 @@
+{
+  "summary": "Phase 3 (Academics & Institutions) backend testing complete. Wrote comprehensive pytest suite covering all 9 feature areas from the review request: Institutions CRUD, Courses CRUD (with new category/eligibility fields), nested Course Subjects, nested Course Sessions, Institution<->Course pivot linking, RBAC across super_admin/admission_officer/examination_officer, CSRF enforcement on all write routes, audit logging, and validation edge cases. 32/32 tests passed on first run against http://localhost:8090.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/php-backend/tests/test_academics_phase3.py",
+    "/app/test_reports/pytest/phase3_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "InstitutionController::update and CourseController::update accept status/type/level as empty strings without erroring because Validator::in() short-circuits on empty string — currently harmless because the field is only added to the SET clause if array_key_exists (and empty string would be written); consider explicitly rejecting empty-string enum values on update to avoid setting an invalid empty value.",
+    "CourseSubjectController::store defaults sort_order to 0 and status to 'active' correctly, but does NOT default is_elective at the schema level via controller — if DB column has a NOT NULL default this is fine; otherwise consider explicit default. (Not observed as a bug during tests.)",
+    "InstitutionController::linkCourse writes ON DUPLICATE KEY UPDATE status='active' — this silently REACTIVATES a previously-inactive link. This is per spec (idempotent) but worth documenting so future 'soft-unlink' semantics aren't lost.",
+    "CourseSessionController::destroy dependents check uses uniquely-numbered placeholders (:id1/:id2/:id3), same fix pattern as CourseController — good, matches the fix noted by main agent. Consistent across all 3 delete endpoints; no regression of the 'Invalid parameter number' PDO bug found.",
+    "Response::json() calls exit implicitly (assumed) since controllers return after each early Response::json for 404/422/409 — verified by tests that dependent-blocked delete does not proceed to run DELETE. Good.",
+    "Validator has no explicit boolean/date/regex validators — start_date/end_date on sessions and is_elective on subjects are accepted as free strings/truthy. Low-risk for internal admin API but worth adding date validation in a later hardening pass."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (32/32)", "frontend": "N/A - backend only"},
+  "test_credentials": "Used super_admin (admin@kingswellinstitute.uk) and admission_officer (officer.test@kingswellinstitute.uk) from /app/memory/test_credentials.md. Created a throwaway examination_officer user (exam.qa@kingswellinstitute.uk / ExamPass123!) via mysql INSERT for RBAC testing of the newly-granted courses.manage/sessions.manage permissions — cleaned up after test run.",
+  "seed_data_creation": "All test institutions/courses/subjects/sessions were prefixed 'TST_' and cleaned via module-scoped fixture + explicit final mysql DELETE. Verified 0 rows remain matching TST_% in institutions/courses. audit_logs rows from testing were intentionally left in place (no impact on Phase 4).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 3 (Academics) fully validated end-to-end. Next phase (Phase 4 — Admissions/Students/Enrollment) will build on institutions/courses/course_sessions. All 3 canonical test accounts (admin, student.test, officer.test) are intact; academics tables are empty of test data. When testing Phase 4, watch for the same PDO 'Invalid parameter number' pattern if dependents-check queries reuse a named placeholder — fix pattern is to use :id1/:id2/... To run existing regression: `cd /app/php-backend && python -m pytest tests/ -v` runs both Phase 2 (21 tests) and Phase 3 (32 tests) suites.",
+  "rca of the issue": "N/A — no bugs found in this phase. Main agent's self-noted PDO 'Invalid parameter number' bug on named-placeholder reuse was already fixed pre-test using uniquely-numbered placeholders (:id1, :id2, ...) in dependents-check queries across CourseController::destroy, InstitutionController::destroy, and CourseSessionController::destroy. Confirmed via passing tests test_delete_blocked_by_dependents_409 and test_institution_delete_cascades_link."
+}

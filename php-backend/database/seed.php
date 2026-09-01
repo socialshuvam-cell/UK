@@ -49,7 +49,7 @@ foreach ($permissions as [$slug, $name, $module]) {
 $rolePermissionMap = [
     'super_admin'          => '*',
     'admission_officer'    => ['admissions.view', 'admissions.review', 'students.view', 'students.manage', 'enrollments.manage'],
-    'examination_officer'  => ['exams.manage', 'exam_registrations.manage', 'marks.enter', 'marks.verify', 'results.publish', 'students.view'],
+    'examination_officer'  => ['courses.manage', 'sessions.manage', 'exams.manage', 'exam_registrations.manage', 'marks.enter', 'marks.verify', 'results.publish', 'students.view'],
     'certificate_officer'  => ['documents.issue', 'documents.revoke', 'students.view'],
     'institution_admin'    => ['students.view', 'students.manage', 'admissions.view', 'admissions.review', 'enrollments.manage', 'payments.record', 'payments.view'],
     'finance'              => ['payments.record', 'payments.view', 'students.view'],
