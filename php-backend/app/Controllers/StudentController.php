@@ -163,6 +163,17 @@ final class StudentController
             Response::json(['errors' => ['file' => [$e->getMessage()]]], 422);
         }
 
+        $absolutePath = dirname(__DIR__, 2) . '/public_html/' . $stored['path'];
+        if ($docType === 'photo') {
+            // A candidate photo must be a real, GD-decodable image (used later by
+            // Phase 6 PDF rendering) — reject anything else instead of letting a
+            // corrupt/undecodable file brick future document issuance.
+            if (!in_array($stored['mime'], ['image/jpeg', 'image/png'], true) || @getimagesize($absolutePath) === false) {
+                @unlink($absolutePath);
+                Response::json(['errors' => ['file' => ['Photo must be a valid JPEG or PNG image']]], 422);
+            }
+        }
+
         $stmt = $pdo->prepare(
             'INSERT INTO student_documents (student_id, doc_type, file_path, original_name, mime_type, file_size, uploaded_by)
              VALUES (:student_id, :doc_type, :path, :original, :mime, :size, :uploaded_by)'
@@ -183,6 +194,13 @@ final class StudentController
         $document = $docStmt->fetch();
 
         AuditLog::record($pdo, $request->user['id'], 'student_document_uploaded', 'student_documents', (string) $id, null, $document);
+
+        // A 'photo' upload also becomes the student's master candidate photo,
+        // used by Phase 6 document rendering (hall tickets, certificates, ...).
+        if ($docType === 'photo') {
+            $pdo->prepare('UPDATE students SET photo_path = :path WHERE id = :id')
+                ->execute(['path' => $stored['path'], 'id' => $studentId]);
+        }
 
         Response::json(['document' => $document], 201);
     }

@@ -9,6 +9,8 @@ use App\Controllers\CourseController;
 use App\Controllers\CourseSessionController;
 use App\Controllers\CourseSubjectController;
 use App\Controllers\DiagnosticsController;
+use App\Controllers\DocumentController;
+use App\Controllers\DocumentTemplateController;
 use App\Controllers\EnrollmentController;
 use App\Controllers\ExaminationController;
 use App\Controllers\ExaminationSubjectController;
@@ -18,6 +20,7 @@ use App\Controllers\InstitutionController;
 use App\Controllers\MarksController;
 use App\Controllers\ResultController;
 use App\Controllers\StudentController;
+use App\Controllers\VerificationController;
 use App\Core\Request;
 use App\Core\Router;
 
@@ -122,5 +125,29 @@ $router->get('/api/me/exam-registrations', [ExamRegistrationController::class, '
 $router->get('/api/me/exam-registrations/{id}/hall-ticket', [ExamRegistrationController::class, 'meHallTicket'], ['auth']);
 $router->get('/api/me/results', [ResultController::class, 'meIndex'], ['auth']);
 $router->get('/api/me/results/{id}', [ResultController::class, 'meShow'], ['auth']);
+
+// Document templates (configurable per doc_type, versioned)
+$router->get('/api/document-templates', [DocumentTemplateController::class, 'index'], ['auth', 'permission:documents.templates.manage']);
+$router->get('/api/document-templates/{id}', [DocumentTemplateController::class, 'show'], ['auth', 'permission:documents.templates.manage']);
+$router->post('/api/document-templates', [DocumentTemplateController::class, 'store'], ['auth', 'csrf', 'permission:documents.templates.manage']);
+$router->put('/api/document-templates/{id}', [DocumentTemplateController::class, 'update'], ['auth', 'csrf', 'permission:documents.templates.manage']);
+$router->delete('/api/document-templates/{id}', [DocumentTemplateController::class, 'destroy'], ['auth', 'csrf', 'permission:documents.templates.manage']);
+
+// Documents (unified issuance: hall_ticket, marksheet, transcript, certificate, diploma, degree, completion_letter, admission_letter)
+$router->get('/api/documents', [DocumentController::class, 'index'], ['auth', 'permission:documents.issue']);
+$router->get('/api/documents/{id}', [DocumentController::class, 'show'], ['auth', 'permission:documents.issue']);
+$router->post('/api/documents', [DocumentController::class, 'store'], ['auth', 'csrf', 'permission:documents.issue']);
+$router->get('/api/documents/{id}/download', [DocumentController::class, 'download'], ['auth', 'permission:documents.issue']);
+$router->post('/api/documents/{id}/reissue', [DocumentController::class, 'reissue'], ['auth', 'csrf', 'permission:documents.issue']);
+$router->post('/api/documents/{id}/signatories', [DocumentController::class, 'addSignatory'], ['auth', 'csrf', 'permission:documents.issue']);
+$router->post('/api/documents/{id}/revoke', [DocumentController::class, 'revoke'], ['auth', 'csrf', 'permission:documents.revoke']);
+$router->post('/api/documents/{id}/cancel', [DocumentController::class, 'cancel'], ['auth', 'csrf', 'permission:documents.revoke']);
+
+// Student self-service — issued documents
+$router->get('/api/me/issued-documents', [DocumentController::class, 'meIndex'], ['auth']);
+$router->get('/api/me/issued-documents/{id}/download', [DocumentController::class, 'meDownload'], ['auth']);
+
+// Public verification — no auth, no permission (rate-limited inside the controller)
+$router->get('/api/verify/{token}', [VerificationController::class, 'show']);
 
 $router->dispatch(Request::fromGlobals());

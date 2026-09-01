@@ -1,0 +1,44 @@
+{
+  "summary": "Phase 6 (Documents & Verification) backend end-to-end + edge case testing complete, plus full Phase 2–5 regression. 54 new Phase 6 tests + 146 regression tests = 200/200 passing. Independently re-verified every scenario the main agent already tested (issuance for all 8 doc_types, anchor validation matrix, document_number format per type, hall_ticket-does-NOT-consume-HT-counter, marksheet-unpublished 409, transcript-unpublished 409, admission_letter-rejected 409, immutability trigger SQLSTATE 45000 on data_snapshot/document_number, lifecycle revoke/cancel/reissue + hall_ticket-reissue 409 + already-superseded-reissue 409, template versioning + is_active exclusivity per doc_type + delete-referenced-template 409, default vs explicit signatories, addSignatory, QR PNG decodes to APP_URL/verify/{token} via zbarimg, PDF header is %PDF- and exactly 1 page (no regression of the SetAutoPageBreak-before-footer 2-page bug), public /api/verify for valid/revoked/superseded/not_found statuses with logging into document_verifications, rate limit 429 after 30 not_found lookups, RBAC across all Phase 6 endpoints, unauthenticated 401, missing/wrong CSRF 403, staff+student self-service downloads, /api/me/issued-documents scoped to Auth::requireStudentId, unlinked-student 403). Also independently re-ran 5-concurrent-diploma numbering (all 5 unique). Found 1 real production robustness bug — see backend_issues.critical below.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/documents (any doc_type with show_photo template)",
+        "issue": "If students.photo_path points to a file FPDF can't parse (corrupt JPEG, unsupported color space, truncated upload, etc.), every subsequent document issuance for that student returns 500 'Internal Server Error' because FPDF::Image() throws an uncaught 'Missing or incorrect image file' exception inside DocumentRenderer::render() (fpdf.php:267). Reproduced by uploading a syntactically-marked-but-invalid JPEG via POST /api/me/documents doc_type=photo (which sets students.photo_path via the Phase 6 StudentController sync), then calling POST /api/documents doc_type=certificate — response is 500 and no document is inserted. Real risk in production because student photo uploads are self-service and the API currently only validates MIME/extension, not that GD/FPDF can actually decode the pixels.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/documents (any type)",
+        "issue": "phpqrcode emits many PHP 8.2 deprecation warnings ('Implicit conversion from float X.5 to int loses precision' in qrencode.php:140/144). Harmless at runtime (deprecation, not error) but pollutes PHP error log and will break under future PHP versions that promote these to errors. Vendored library — could be silenced with @ or an error_reporting mask around the QrCode::generatePng call, or by patching the vendored file's arithmetic to explicit (int)."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/php-backend/tests/test_documents_phase6.py",
+    "/app/test_reports/pytest/phase6_results.xml"
+  ],
+  "action_items": [
+    "HIGH: Harden DocumentRenderer::render() against invalid photos — wrap $pdf->Image($photoAbsolutePath, ...) in try/catch (catch \\Throwable, log warning, fall back to the existing 'No Photo' placeholder branch). Alternatively, validate images in StudentController::storeUploadedDocument() via getimagesize() before writing photo_path, and reject/quarantine files that GD can't parse. Recommend BOTH so a legacy bad file already in the DB doesn't brick issuance.",
+    "LOW: Silence or patch phpqrcode's float->int deprecation warnings (vendored file, single-line cast fixes)."
+  ],
+  "critical_code_review_comments": [
+    "DocumentController.issue() correctly separates the DB transaction from generateFiles() so a PDF/QR failure doesn't corrupt the documents row — but the current 500 on Image() means the row IS committed (with valid document_number/token) while file_path/qr_code_path remain NULL forever, because the failure happens after commit and there's no cleanup path. Consider either (a) generating files BEFORE the insert and rolling back if they fail, or (b) marking such docs with a 'needs_regeneration' flag + a resend endpoint. Current impact: orphan document rows in DB that can never be downloaded.",
+    "VerificationController.show() correctly logs BEFORE potentially exiting with the 429/not_found response — good for audit trail. RateLimiter.record uses the token itself as the identifier which is fine because tokens are 48-hex-char random.",
+    "DocumentController.buildTranscript() iterates result_ids and validates each — but it uses one prepared statement re-executed per id, which is correct (no HY093 risk given ATTR_EMULATE_PREPARES=false).",
+    "DocumentTemplateController correctly toggles is_active per-doc_type only (not globally) — verified with a v2 certificate template not affecting the diploma template.",
+    "StudentController.storeUploadedDocument photo sync updates students.photo_path directly from the upload response — no validation that the stored file is a decodable image (see critical bug above)."
+  ],
+  "updated_files": [
+    "/app/php-backend/tests/test_documents_phase6.py"
+  ],
+  "success_rate": {"backend": "100% (200/200: 54 Phase 6 + 146 regression from phases 2–5)"},
+  "test_credentials": "Added local test account: certofficer.test@kingswellinstitute.uk / CertPass123! (role_id=4 Certificate Officer). Created via mysql INSERT with password_hash generated by php password_hash(...,PASSWORD_BCRYPT). Please update /app/memory/test_credentials.md with this account for future testing agents (I did not modify that file this run).",
+  "seed_data_creation": "1 new user row (id=18, certofficer.test@kingswellinstitute.uk). All Phase 6 documents and per-test signatories/document_results/document_verifications rows were wiped via _cleanup_test_docs() at the start of the module and are safely repopulated only with test-created rows during the run. Alice's students.photo_path was set to a real 10x10 red JPEG by TestPhotoSync — leaving it in place is safe and matches production expectations.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Base URL http://localhost:8090. Test file /app/php-backend/tests/test_documents_phase6.py can be re-run standalone (auto-wipes documents at module start; regression tests do NOT touch other phases' data). Alice (student_id=3) now has a real valid JPEG at photo_path; a fresh Counter state means CERT/DIP/DEG/MS/TR/CL/AL sequences are advanced by roughly 20+ each (all 54 tests issue documents). exam_registrations.id=1 hall_ticket_number KWI/HT/2026/000001 unchanged. certofficer.test user (id=18) exists — reuse for role-specific tests.",
+  "rca of the issue": "Photo-crash bug RCA: DocumentRenderer.php:55 calls $pdf->Image($photoAbsolutePath, ...) directly, and FPDF's Image() calls _parsejpg/_parsepng which throw via $this->Error() (which does trigger_error / throw). No try/catch around it. StudentController::storeUploadedDocument accepts any file whose MIME/extension matches an image type and syncs its path to students.photo_path — no getimagesize()/imagecreatefromstring validation. Reproduction: (1) POST /api/me/documents doc_type=photo with body bytes '\\xff\\xd8\\xff\\xe0' + 200 null bytes + '\\xff\\xd9' (fake but valid-looking JPEG). (2) POST /api/documents doc_type=certificate enrollment_id=1. Observe HTTP 500; PHP log shows 'FPDF error: Missing or incorrect image file: .../uploads/student_documents/.../*.jpg'. Mitigation: (a) wrap Image() call in try{}catch(\\Throwable $e){ log; fallthrough to 'No Photo' Rect+Cell path }, and/or (b) in StudentController's photo sync branch, run getimagesize($absolute) before UPDATE students SET photo_path=... — reject with 422 if it returns false."
+}

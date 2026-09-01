@@ -10,4 +10,13 @@ final class Response
         echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }
+
+    public static function file(string $absolutePath, string $downloadName, string $contentType = 'application/pdf'): never
+    {
+        header('Content-Type: ' . $contentType);
+        header('Content-Disposition: attachment; filename="' . basename($downloadName) . '"');
+        header('Content-Length: ' . filesize($absolutePath));
+        readfile($absolutePath);
+        exit;
+    }
 }

@@ -265,25 +265,104 @@ self-scoping (Alice sees only her own, unlinked student gets 403), full Phase 2-
 (94 tests) all still passing. Regression suite: `tests/test_examinations_phase5.py`. Report:
 `/app/test_reports/iteration_4.json`.
 
+### Phase 6 — Documents & Verification (complete 2026-09-01, awaiting user approval to start Phase 7)
+- `app/Controllers/DocumentTemplateController.php` — CRUD for `document_templates`; version
+  auto-increments per `doc_type` on every `store()`; `is_active=1` deactivates other versions
+  of the *same* `doc_type` only; delete blocked 409 if any `documents` row references the
+  template; `fields_config` JSON drives the generic renderer (title, body_text with
+  `{{placeholders}}`, show_photo/show_signatories, default_signatories) — no per-type PHP code
+  needed to change wording/branding, just a new template version.
+- `app/Controllers/DocumentController.php` — unified issuance (`POST /api/documents`) for all
+  8 doc_types via `buildSnapshot()` dispatch to 5 anchor-specific builders
+  (buildHallTicket/buildMarksheet/buildTranscript/buildCourseCompletion [shared by
+  certificate/diploma/degree/completion_letter]/buildAdmissionLetter). Eligibility guards:
+  certificate/diploma/degree/completion_letter require `enrollments.status='completed'` (422);
+  marksheet/transcript require `results.published_at IS NOT NULL` (409); admission_letter
+  requires `admissions.student_id` set + status not rejected/cancelled (409). `document_number`
+  allocated via the existing `Counter` service (`CERT/DIP/DEG/MS/TR/CL/AL` sequence keys,
+  `KWI/{PREFIX}/{year}/{6-digit-seq}`) — **except** hall_ticket, which reuses the
+  `exam_registrations.hall_ticket_number` already allocated in Phase 5 (no new Counter call).
+  `data_snapshot` (frozen JSON) + `snapshot_hash` (sha256) + `verification_token`
+  (48 random hex) + `uuid` are written in one DB transaction along with
+  `document_signatories` and (for transcripts) `document_results` pivot rows; QR PNG +
+  rendered PDF are generated in a second step (outside the transaction, since file I/O can't
+  be rolled back) and `qr_code_path`/`file_path` are updated afterward — both columns are
+  outside the immutability trigger's protected list. `reissue()` rebuilds a fresh snapshot
+  from **current** source data (not the old snapshot) into a brand-new document row
+  (`revision+1`, `replaces_document_id`), then marks the old row `status='superseded'` +
+  `superseded_by`; hall_ticket reissue is blocked 409 (number is 1:1 with the exam
+  registration, can't be duplicated). `revoke()`/`cancel()` require a `reason`, only act on
+  `status='valid'` (409 otherwise). Student self-service: `/api/me/issued-documents` +
+  `/api/me/issued-documents/{id}/download`, scoped to `Auth::requireStudentId()`.
+- `app/Controllers/VerificationController.php` — public `GET /api/verify/{token}`, **zero
+  auth**, rate-limited via the existing `RateLimiter` (type=`verify`, 30 failed/15min → 429).
+  Never 404s for a real lookup: valid/revoked/cancelled/superseded all return `found:true` +
+  status (+ reason/superseded_by_document_number where relevant); only a syntactically unknown
+  token returns `found:false, status:not_found`. Every lookup logged to
+  `document_verifications`.
+- `app/Core/DocumentRenderer.php` — generic single-layout PDF engine (FPDF) driven entirely by
+  `data_snapshot` + template `fields_config`: outer border, institute name + title, doc
+  number/issue date, photo box (top-right, falls back to a "No Photo" placeholder box —
+  wrapped in try/catch so a bad/undecodable photo file can never 500 the whole issuance),
+  label:value info block, per-doc_type body (marks table for marksheet, exams table for
+  transcript, schedule table for hall_ticket, else a `{{placeholder}}`-substituted paragraph
+  for letters/certificates), signatories row, QR image + "Scan to verify", footer with the
+  verification URL. `app/Core/QrCode.php` wraps phpqrcode for PNG generation.
+- **Vendored (no Composer, Hostinger-safe)**: `app/Vendor/fpdf/` (FPDF 1.86, pure PHP, needs
+  its `/font` metrics dir even for core Arial/Helvetica) and `app/Vendor/phpqrcode/` (PNG QR
+  via GD). **GD PHP extension is now a hard requirement** — installed locally via
+  `apt install php8.2-gd` (standard/default on Hostinger shared hosting, no special request
+  needed) and Apache restarted to load it.
+- Permission added to `seed.php`: `documents.templates.manage`, granted to `super_admin` (`*`)
+  and `certificate_officer` (which also already had `documents.issue`/`documents.revoke`).
+  8 default active templates (one per doc_type, version=1) seeded idempotently.
+- `StudentController::storeUploadedDocument()` — a `doc_type='photo'` upload now also syncs
+  `students.photo_path` (the master candidate photo used by document rendering); validates via
+  `getimagesize()` that the file is a real decodable JPEG/PNG first (422 otherwise) — added
+  after the testing_agent found an uploaded-but-undecodable "photo" could 500 every future
+  document issuance for that student.
+- Routes added in `index.php`: `/api/document-templates*`, `/api/documents*`,
+  `/api/me/issued-documents*`, public `/api/verify/{token}` (no middleware at all).
+
+**Tested (2026-09-01, self-test via curl/pdftoppm/zbarimg + testing_agent, 200/200 passing —
+54 new Phase 6 + 146 regression):** all 8 doc_types issued correctly with proper anchor
+validation and document_number format (hall_ticket confirmed to NOT consume a new Counter
+value); immutability trigger blocks direct SQL changes to
+data_snapshot/document_number/verification_token (SQLSTATE 45000) while qr_code_path/
+file_path/status/revoked_*/superseded_by updates succeed; QR PNG decodes (zbarimg) to exactly
+`{APP_URL}/verify/{token}`; generated PDF is single-page valid `%PDF-`; reissue/revoke/cancel
+lifecycle incl. hall_ticket-reissue-409 and already-superseded-reissue-409; template
+versioning + per-doc_type is_active exclusivity + delete-referenced-409; default vs explicit
+signatories; public verification for valid/revoked/cancelled/superseded/not_found + 429 rate
+limit + logging; 5-concurrent-issuance numbering collision safety (all unique); RBAC 403 for
+admission_officer/student on every Phase 6 staff route, 401 unauthenticated, 403 missing/wrong
+CSRF; student self-service ownership scoping. **2 bugs found by testing_agent and fixed**: (1)
+HIGH — undecodable student photo crashed PDF generation with 500, fixed with try/catch
+fallback in DocumentRenderer + getimagesize() validation on photo upload; (2) LOW — phpqrcode
+float→int deprecation log noise, fixed with explicit `(int)` casts in the vendored file.
+New test account `certofficer.test@kingswellinstitute.uk` (see test_credentials.md). Report:
+`/app/test_reports/iteration_5.json`.
+
 ## Prioritized backlog (from ARCHITECTURE.md §11, unchanged)
-- **P1 — Phase 6:** Documents & Verification (template engine, unified issuance for all 8
-  doc types, QR + tokens, PDF generation, public `/verify/{token}`, revoke/reissue flows).
 - **P2 — Phase 7:** Finance (manual payments + receipts) & notifications, dashboards/reports.
 - **P2 — Phase 8:** Hardening + Hostinger deployment guide/checklist, final relative-API build.
 
 ## Critical rules for next agent
-- **Do not start Phase 6 or write further app code until the user explicitly approves** the
-  Phase 5 report.
+- **Do not start Phase 7 or write further app code until the user explicitly approves** the
+  Phase 6 report.
+- GD PHP extension is now a hard runtime dependency (document PDF/QR generation) — never
+  disable/uninstall it; confirm it's in the Hostinger PHP configuration checklist for Phase 8.
 - `DiagnosticsController` + `/api/diagnostics/*` routes are Phase-2-only scaffolding for RBAC
   testing — fine to leave, but don't build real features on top of them.
 - Canonical test accounts (see `/app/memory/test_credentials.md`): super_admin, student.test
   (unlinked), officer.test, **plus now Alice Wonder** (student_id=3, alice.wonder@example.com,
   reg `KWI/REG/2026/000001`, 2 enrollments in course 16/CMS) — keep all intact for Phase 5.
-- Fixture data for Phase 6 to build on: institution id=11 (KWI-MAIN) linked to course id=16
+- Fixture data for Phase 7 to build on: institution id=11 (KWI-MAIN) linked to course id=16
   (CMS), sessions id=4 (Autumn 2026) and id=5 (Spring 2027); course_subjects id=6/7 (CMS101,
   CMS102); examination id=1 (`KWI/EXAM/2026/000001`); exam_registration id=1 (Alice, hall
-  ticket `KWI/HT/2026/000001`); result id=1 (published, fail, percentage 57.50, grade C) —
-  useful as the "existing result to attach a marksheet/transcript document to" in Phase 6.
+  ticket `KWI/HT/2026/000001`); result id=1 (published, grade C); Alice now has a real
+  `students.photo_path` (candidate photo) set. Numerous Phase 6 test documents (all 8
+  doc_types, some revoked/cancelled/superseded) exist for student_id=3 — safe to leave/ignore.
 - PDO here has `ATTR_EMULATE_PREPARES=false` — never reuse the same named placeholder twice
   in one query (this bug pattern has recurred 3 times across phases — always grep for it
   after writing any multi-condition/multi-subquery SQL string).

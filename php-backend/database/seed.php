@@ -31,6 +31,7 @@ $permissions = [
     ['documents.revoke', 'Revoke/Cancel Documents', 'documents'],
     ['documents.view_self', 'View Own Documents', 'documents'],
     ['documents.verify_public', 'Public Document Verification', 'documents'],
+    ['documents.templates.manage', 'Manage Document Templates', 'documents'],
     ['payments.record', 'Record Payments', 'finance'],
     ['payments.view', 'View Payments', 'finance'],
     ['payments.view_self', 'View Own Payments', 'finance'],
@@ -50,7 +51,7 @@ $rolePermissionMap = [
     'super_admin'          => '*',
     'admission_officer'    => ['admissions.view', 'admissions.review', 'students.view', 'students.manage', 'enrollments.manage'],
     'examination_officer'  => ['courses.manage', 'sessions.manage', 'exams.manage', 'exam_registrations.manage', 'marks.enter', 'marks.verify', 'results.publish', 'students.view'],
-    'certificate_officer'  => ['documents.issue', 'documents.revoke', 'students.view'],
+    'certificate_officer'  => ['documents.issue', 'documents.revoke', 'documents.templates.manage', 'students.view'],
     'institution_admin'    => ['students.view', 'students.manage', 'admissions.view', 'admissions.review', 'enrollments.manage', 'payments.record', 'payments.view'],
     'finance'              => ['payments.record', 'payments.view', 'students.view'],
     'student'              => ['students.view_self', 'results.view_self', 'documents.view_self', 'payments.view_self'],
@@ -80,3 +81,48 @@ foreach ($rolePermissionMap as $roleSlug => $perms) {
 }
 
 echo 'Seed complete: ' . count($permissions) . ' permissions upserted, ' . $linked . " role_permission links processed.\n";
+
+// Phase 6: one default active template per doc_type (idempotent — skipped if
+// a version already exists for that doc_type). fields_config drives the
+// generic PDF renderer (title, body_text with {{placeholders}}, show flags,
+// default_signatories) without ever hard-coding a design in PHP.
+$defaultTemplates = [
+    ['hall_ticket', 'Standard Hall Ticket', ['title' => 'EXAMINATION HALL TICKET', 'show_photo' => true, 'show_signatories' => true,
+        'default_signatories' => [['name' => 'Controller of Examinations', 'designation' => 'Kingswell Institute']]]],
+    ['marksheet', 'Standard Marksheet', ['title' => 'STATEMENT OF MARKS', 'show_photo' => false, 'show_signatories' => true,
+        'default_signatories' => [['name' => 'Controller of Examinations', 'designation' => 'Kingswell Institute']]]],
+    ['transcript', 'Standard Transcript', ['title' => 'ACADEMIC TRANSCRIPT', 'show_photo' => false, 'show_signatories' => true,
+        'default_signatories' => [['name' => 'Registrar', 'designation' => 'Kingswell Institute']]]],
+    ['certificate', 'Standard Certificate of Completion', ['title' => 'CERTIFICATE OF COMPLETION', 'show_photo' => true, 'show_signatories' => true,
+        'body_text' => 'This is to certify that {{student_name}}, Registration No. {{registration_number}}, has successfully completed the course "{{course_name}}" during the {{session_name}} session at {{institution_name}}.',
+        'default_signatories' => [['name' => 'Registrar', 'designation' => 'Kingswell Institute'], ['name' => 'Director', 'designation' => 'Kingswell Institute']]]],
+    ['diploma', 'Standard Diploma', ['title' => 'DIPLOMA', 'show_photo' => true, 'show_signatories' => true,
+        'body_text' => 'This is to certify that {{student_name}}, Registration No. {{registration_number}}, has been awarded this Diploma in "{{course_name}}" having completed the {{session_name}} session at {{institution_name}}.',
+        'default_signatories' => [['name' => 'Registrar', 'designation' => 'Kingswell Institute'], ['name' => 'Director', 'designation' => 'Kingswell Institute']]]],
+    ['degree', 'Standard Degree Certificate', ['title' => 'DEGREE CERTIFICATE', 'show_photo' => true, 'show_signatories' => true,
+        'body_text' => 'This is to certify that {{student_name}}, Registration No. {{registration_number}}, has been conferred the Degree in "{{course_name}}" having completed the {{session_name}} session at {{institution_name}}.',
+        'default_signatories' => [['name' => 'Registrar', 'designation' => 'Kingswell Institute'], ['name' => 'Director', 'designation' => 'Kingswell Institute']]]],
+    ['completion_letter', 'Standard Completion Letter', ['title' => 'COURSE COMPLETION LETTER', 'show_photo' => false, 'show_signatories' => true,
+        'body_text' => 'This is to inform that {{student_name}} (Roll No. {{roll_number}}, Registration No. {{registration_number}}) has successfully completed the course "{{course_name}}" during the {{session_name}} session at {{institution_name}}.',
+        'default_signatories' => [['name' => 'Registrar', 'designation' => 'Kingswell Institute']]]],
+    ['admission_letter', 'Standard Admission Letter', ['title' => 'ADMISSION LETTER', 'show_photo' => false, 'show_signatories' => true,
+        'body_text' => 'We are pleased to inform {{student_name}} that admission (No. {{admission_number}}) to the course "{{course_name}}" for the {{session_name}} session at {{institution_name}} has been confirmed.',
+        'default_signatories' => [['name' => 'Admissions Officer', 'designation' => 'Kingswell Institute']]]],
+];
+
+$templatesCreated = 0;
+$existsStmt = $pdo->prepare('SELECT COUNT(*) AS c FROM document_templates WHERE doc_type = :doc_type');
+$insertTemplateStmt = $pdo->prepare(
+    'INSERT INTO document_templates (doc_type, name, version, fields_config, paper_size, orientation, is_active)
+     VALUES (:doc_type, :name, 1, :fields, "A4", "portrait", 1)'
+);
+foreach ($defaultTemplates as [$docType, $name, $fieldsConfig]) {
+    $existsStmt->execute(['doc_type' => $docType]);
+    if ((int) $existsStmt->fetch()['c'] > 0) {
+        continue;
+    }
+    $insertTemplateStmt->execute(['doc_type' => $docType, 'name' => $name, 'fields' => json_encode($fieldsConfig)]);
+    $templatesCreated++;
+}
+
+echo "Document templates: {$templatesCreated} default template(s) created.\n";
