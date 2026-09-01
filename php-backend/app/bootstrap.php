@@ -33,10 +33,13 @@ set_exception_handler(function (Throwable $e): void {
     App\Core\Response::json(['error' => 'Internal Server Error'], 500);
 });
 
-// Local dev only: allow the React dev server (different port) to call the API.
-// In production both are same-origin under Hostinger, so this block is inert.
+// Local dev only: allow the React dev server (different port) to call the API
+// WITH cookies. In production both are same-origin under Hostinger, so this
+// block is inert (credentialed wildcard origins are rejected by browsers anyway).
 if (App\Core\Config::get('APP_ENV', 'local') === 'local') {
-    header('Access-Control-Allow-Origin: *');
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+    header("Access-Control-Allow-Origin: {$origin}");
+    header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token');
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {

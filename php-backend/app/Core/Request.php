@@ -8,6 +8,10 @@ final class Request
     public array $query;
     public array $body;
     public array $params = [];
+    public ?array $user = null;
+    public ?array $permissions = null;
+    public ?int $sessionId = null;
+    public ?string $csrfToken = null;
 
     private function __construct(string $method, string $path, array $query, array $body)
     {

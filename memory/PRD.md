@@ -77,10 +77,45 @@ for approval after each phase.
 No testing_agent used for Phase 1 (pure backend infra, no user-facing UI yet) — verified via
 curl + mysql CLI per the quick-testing rules.
 
+### Phase 2 — Auth & RBAC (complete 2026-09-01, awaiting user approval to start Phase 3)
+- `app/Core/Auth.php` — session token (random 64-hex) + CSRF token (random 64-hex) creation,
+  cookie set/clear (`HttpOnly`, `SameSite=Lax`, `Secure` when `APP_ENV!=local`), opportunistic
+  cleanup of expired `user_sessions` rows on every login.
+- `app/Core/RateLimiter.php` — `login_attempts` based check, blocks by **email OR IP** (either
+  hitting the threshold blocks), 5 attempts / 15 min window → 429.
+- `app/Core/AuditLog.php` — writes `audit_logs` rows (action, entity, old/new JSON, ip, UA).
+- `app/Middleware/AuthMiddleware.php` — cookie → `user_sessions` lookup (sha256 token hash),
+  expiry check (deletes + 401 if expired), sliding renewal (`expires_at` extended each request
+  = inactivity timeout), loads role permissions onto `$request->permissions`.
+- `app/Middleware/CsrfMiddleware.php` — `X-CSRF-Token` header vs `user_sessions.csrf_token`,
+  `hash_equals`, 403 on mismatch/missing. Applied to all state-changing routes except login.
+- `app/Middleware/PermissionMiddleware.php` — declarative `permission:<slug>` middleware, 403
+  if the role's permission set (loaded by AuthMiddleware) doesn't include the slug.
+- `Router` extended: `get/post/put/delete($path, $handler, $middleware = [])`, runs
+  `auth` → `csrf` → `permission:*` in order before the controller.
+- `app/Controllers/AuthController.php` — `login` (rate-limit → lockout check → verify →
+  rehash-if-needed → destroy-any-existing-session-then-create-new [session-fixation defense]
+  → set cookie → audit log), `logout` (destroy session, clear cookie, audit log; requires
+  `auth`+`csrf`), `me` (returns user + permissions + csrf_token; requires `auth`).
+- `app/Controllers/DiagnosticsController.php` — **temporary** Phase-2-only endpoints
+  (`/api/diagnostics/admin-only` needs `users.manage`, `/api/diagnostics/students-view` needs
+  `students.view`) purely to exercise RBAC before any real feature module exists; safe to
+  remove/ignore once Phase 3+ adds real permission-gated endpoints.
+- `database/bootstrap_admin.php` — idempotent CLI-only Super Admin creation (never an HTTP
+  endpoint), reads `SUPER_ADMIN_EMAIL`/`PASSWORD`/`FIRST_NAME`/`LAST_NAME` from `.env`.
+- `bootstrap.php` CORS fixed to reflect `Origin` + `Access-Control-Allow-Credentials: true`
+  (local only) so cookies work once a React dev server is added in a later phase.
+
+**Tested (2026-09-01, testing_agent, 21/21 pytest cases passed, 0 critical/minor issues):**
+login success/failure (generic error, no user enumeration), rate limiting (429), account
+lockout (`users.locked_until` set + 423), `/api/auth/me` 200/401, session regeneration on
+login, session expiry (manual DB expire → 401 + row cleanup) + sliding renewal, logout CSRF
+enforcement (403 without/wrong token, 200 + session destroyed with correct token), RBAC
+403/200 across super_admin/student/admission_officer on both diagnostic endpoints, audit_logs
+rows for login/login_failed/logout, bootstrap script idempotency. Regression suite saved at
+`/app/php-backend/tests/test_auth_phase2.py`.
+
 ## Prioritized backlog (from ARCHITECTURE.md §11, unchanged)
-- **P0 — Phase 2:** Auth & RBAC. Session login/logout, HttpOnly cookie, brute-force + rate
-  limiting (`login_attempts`), CSRF, permission middleware, audit logging, user/role management,
-  Super Admin bootstrap.
 - **P1 — Phase 3:** Academics (institutions, courses, subjects, sessions CRUD + scoping).
 - **P1 — Phase 4:** Admissions → Students → Enrollment (application intake, review/approve,
   student master creation, REG+ROLL numbering, uploads, student portal login).
@@ -92,8 +127,12 @@ curl + mysql CLI per the quick-testing rules.
 - **P2 — Phase 8:** Hardening + Hostinger deployment guide/checklist, final relative-API build.
 
 ## Critical rules for next agent
-- **Do not start Phase 2 or write further app code until the user explicitly approves** the
-  Phase 1 report.
+- **Do not start Phase 3 or write further app code until the user explicitly approves** the
+  Phase 2 report.
+- `DiagnosticsController` + `/api/diagnostics/*` routes are Phase-2-only scaffolding for RBAC
+  testing — fine to leave, but don't build real features on top of them.
+- 3 test accounts must stay in `users` table for future phases: super_admin, student.test,
+  officer.test (see `/app/memory/test_credentials.md`).
 - Never use Python/Node/MongoDB/Redis/Docker/Composer in `/app/php-backend`. Leave
   `/app/backend` (FastAPI) and `/app/frontend` (CRA) untouched — they are not part of this project.
 - Do not modify `/app/database/schema.sql` or `/app/php-backend/database/schema.sql` unless a

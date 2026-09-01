@@ -1,0 +1,34 @@
+{
+  "summary": "Phase 2 (Auth & RBAC) backend testing of Kingswell Institute PHP API on http://localhost:8090. Wrote pytest suite (21 tests, 10 test classes) covering login success/failure, rate limiting, account lockout, /api/auth/me, session regeneration, session expiry + opportunistic cleanup, sliding expiration, logout CSRF enforcement, RBAC (super_admin/student/admission_officer against admin-only + students-view diagnostics), audit logging, and bootstrap script idempotency. All 21/21 tests PASS. Verified HttpOnly cookie set, Secure flag absent locally (APP_ENV=local), generic 401 error message on invalid creds, 429 rate-limit response, users.locked_until DB column set after repeated failures, session sliding expires_at extension, CSRF header enforcement, opportunistic expired-session row cleanup, audit_logs rows for login/login_failed/logout, and idempotent super_admin bootstrap CLI.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/php-backend/tests/test_auth_phase2.py",
+    "/app/test_reports/pytest/phase2_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AuthController and middleware chain look clean and correctly enforce session + CSRF + RBAC. No hardcoded secrets observed.",
+    "Rate limiter combines email OR IP by design — documented in credentials file; acceptable trade-off for local testing.",
+    "Opportunistic session cleanup only removes the specific accessed expired row (not a bulk sweep). Fine for now; recommend a periodic cron/cleanup task in a later phase to purge stale rows for inactive users.",
+    "Generic 'Invalid email or password' error correctly avoids user enumeration.",
+    "Bootstrap script is idempotent — safe to re-run."
+  ],
+  "updated_files": [
+    "/app/php-backend/tests/test_auth_phase2.py (new)"
+  ],
+  "success_rate": {"backend": "100% (21/21)", "frontend": "N/A (no UI in this phase)"},
+  "test_credentials": "Read from /app/memory/test_credentials.md — super_admin/admin@kingswellinstitute.uk, student/student.test@, admission_officer/officer.test@. All three accounts left intact and reset (failed_login_attempts=0, locked_until=NULL, login_attempts table cleared) after test run.",
+  "seed_data_creation": "No new seed data. Used existing 3 seeded accounts. Temporarily inserted rate-limit rows for a throwaway email 'ratelimit.test@kingswellinstitute.uk' in login_attempts table — cleaned up post-test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 2 auth+RBAC fully verified. Regression suite is at /app/php-backend/tests/test_auth_phase2.py — run with `cd /app/php-backend && python -m pytest tests/test_auth_phase2.py -v`. Base URL http://localhost:8090 (Apache supervisor program 'kingswell-apache'). MySQL access: `mysql -u root kingswell` (no password). Note: rate limiter combines email+IP so tests reset login_attempts between classes. Future phases should add cleanup fixtures for user_sessions/login_attempts if new tests share state.",
+  "rca of the issue": "N/A — no bugs found. Two initial test-script failures were fixed in-place: (1) requests.Session().cookies.get('kwi_session') raised CookieConflictError when a fake pre-existing cookie was set alongside the new server cookie — reworked assertion to check Set-Cookie response header + iterate jar. (2) expired-session cleanup assertion was too strict (expected all expired rows for a user gone, but middleware only cleans the accessed session) — reworked to start from a clean user_sessions table and verify count decreased."
+}
