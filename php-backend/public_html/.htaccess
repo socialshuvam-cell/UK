@@ -1,0 +1,19 @@
+RewriteEngine On
+
+# Let /api/* and /uploads/* be handled by their own folders untouched
+RewriteRule ^api/ - [L]
+RewriteRule ^uploads/ - [L]
+
+# Serve real files/directories as-is
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Everything else falls back to the React SPA entry point
+RewriteRule ^ index.html [L]
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

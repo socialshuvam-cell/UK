@@ -1,0 +1,7 @@
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+<FilesMatch "\.(php|phtml|php3|php4|php5|php7|phar|pl|py|cgi)$">
+    Require all denied
+</FilesMatch>

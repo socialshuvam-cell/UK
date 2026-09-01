@@ -1,0 +1,11 @@
+RewriteEngine On
+
+# Front controller: any request that isn't a real file/dir goes to index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [L]
+
+# Only index.php may ever be requested directly inside this folder
+<FilesMatch "^(?!index\.php$).*\.php$">
+    Require all denied
+</FilesMatch>
