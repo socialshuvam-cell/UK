@@ -475,6 +475,22 @@ attempt incomplete (found by iteration_8 re-test), both now fully fixed and curl
   self-testing — harmless, cannot be deleted by design (documents are immutable audit records; only
   revoke/cancel/reissue are supported), safe to ignore.
 
+### Public QR Verification Page, complete 2026-09-01
+- User explicitly requested the public verification page while skipping the Student Portal expansion
+  (Checkpoint 5 scope narrowed to just this).
+- New file `/app/frontend/src/pages/VerifyPage.jsx`, routes `/verify` and `/verify/:token` added to
+  `App.js` as fully public routes (outside `ProtectedRoute`/`AppLayout` — no login required, no
+  sidebar). Calls the existing public `GET /api/verify/{token}` endpoint (`VerificationController.php`,
+  already rate-limited and audit-logged from Phase 6) — no backend changes needed.
+- Design: standalone navy header with Kingswell crest + "Document Verification" subtitle, manual
+  token entry form (for typing a token directly, not just scanning a QR), and a status card with
+  distinct visual treatment per state: emerald "Valid & Authentic", rose "Revoked"/"Cancelled" (shows
+  reason + date), amber "Superseded" (shows the current document number to look up instead),
+  neutral "Not Found", amber "rate limited" message for HTTP 429.
+- Self-tested (screenshot_tool) all 5 states — empty/valid/revoked/superseded/not_found — rendering
+  correctly, plus confirmed the underlying API works through the real external preview URL (important
+  since real QR scans from printed documents will hit that exact URL, not localhost).
+
 ## Prioritized backlog (from ARCHITECTURE.md §11, unchanged)
 - **P2 — Phase 7:** Finance (manual payments + receipts) & notifications, dashboards/reports.
 - **P2 — Phase 8:** Hardening + Hostinger deployment guide/checklist, final relative-API build.

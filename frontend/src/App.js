@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ADMIN_NAV, PORTAL_NAV } from "@/constants/nav";
 import LoginPage from "@/pages/LoginPage";
+import VerifyPage from "@/pages/VerifyPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 import AdminDashboardPage from "@/pages/admin/DashboardPage";
 import PortalDashboardPage from "@/pages/portal/DashboardPage";
@@ -38,6 +39,8 @@ function App() {
         <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/verify" element={<VerifyPage />} />
+          <Route path="/verify/:token" element={<VerifyPage />} />
 
           <Route
             path="/admin"
