@@ -1,0 +1,29 @@
+{
+  "summary": "Phase 7 Checkpoint 1 frontend shell fully tested via Playwright at http://localhost:3000. All 10 required flows PASS: super_admin login->/admin with 4 permission-gated stat tiles rendering real API values (students=1, admissions=0, examinations=3, documents=24); admission_officer login shows only 2 tiles (students, admissions) — permission gating works; Alice Wonder student login->/portal with registration_number=KWI/REG/2026/000001 and enrollments=2; route guards work in all four directions (logged-out /admin & /portal -> /login; student /admin -> /portal; staff /portal -> /admin); session persists after hard reload via GET /api/auth/me + httpOnly cookie; logout clears server-side session (post-logout /admin -> /login); wrong password shows inline error 'Invalid email or password' via [data-testid=login-error]; mobile viewport (400px) hides sidebar and shows hamburger, sheet slide-out reveals nav; CSRF X-CSRF-Token header confirmed present on POST /api/auth/logout (captured token value in network layer).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Mobile sheet (AppLayout SheetContent)", "issues": ["Radix Dialog console warning: 'DialogContent requires a DialogTitle for the component to be accessible for screen reader users' and 'Missing Description or aria-describedby'. Fix: add a VisuallyHidden SheetTitle/SheetDescription inside SheetContent. A11y-only, not functional."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional a11y polish) Add VisuallyHidden SheetTitle + SheetDescription inside the mobile SheetContent in /app/frontend/src/components/layout/AppLayout.jsx to silence the Radix Dialog a11y warning. Non-blocking for Checkpoint 1 approval."
+  ],
+  "critical_code_review_comments": [
+    "AdminDashboardPage StatCard fetches the ENTIRE list from /students, /admissions, /examinations, /documents just to display .length. This is fine at current seed sizes (max 24 docs) but will not scale — should switch to lightweight count endpoints (or ?limit=1 + total header) in a later checkpoint.",
+    "AuthContext.login() calls applySession with empty perms=[] before refresh() rehydrates them. There is a brief window where a just-logged-in user has permissions=[] which would hide all permission-gated tiles. In practice this resolves in ms because refresh() awaits, but is technically a flicker risk — consider skipping the intermediate applySession call.",
+    "LoginPage handleSubmit uses location.state?.from?.pathname as redirect target without validating the role can access it — student redirected to a saved /admin from-state would bounce twice (login->/admin->ProtectedRoute->/portal). Not broken (ProtectedRoute catches it) but ugly redirect chain. The isStudent guard partially mitigates. Fine for shell.",
+    "Frontend axios baseURL '/api' is correct for Hostinger same-origin and craco proxy — matches user's explicit requirement. No REACT_APP_BACKEND_URL usage (intentional per problem statement)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not requested)", "frontend": "100% (10/10 flows)"},
+  "test_credentials": "super_admin admin@kingswellinstitute.uk / oCP2yig7fNG50VF1r4CX ; admission_officer officer.test@kingswellinstitute.uk / OfficerPass123! ; student alice.wonder@example.com / Iwt5CBibo5Xs (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None — used existing Phase 4 fixture data (Alice Wonder student_id=3, 2 enrollments).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 7 Checkpoint 1 (frontend shell: /login, /admin, /portal dashboards) PASSES end-to-end. Testing MUST use http://localhost:3000 as page_url (NOT external Emergent preview URL) — the PHP backend on :8090 is only reachable via craco devServer proxy at :3000/api. Backend Phases 1-6 already approved (see iteration_4/5.json). Future checkpoints will add Admissions/Students/Courses/Enrollments (2), Examinations/Marks/Results (3), Documents (4), Student portal detail + public verify (5) — none of these pages exist yet.",
+  "rca of the issue": "N/A — no bugs found."
+}

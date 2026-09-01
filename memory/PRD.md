@@ -348,10 +348,60 @@ New test account `certofficer.test@kingswellinstitute.uk` (see test_credentials.
 - **P2 — Phase 8:** Hardening + Hostinger deployment guide/checklist, final relative-API build.
 
 ## Critical rules for next agent
-- **Do not start Phase 7 or write further app code until the user explicitly approves** the
-  Phase 6 report.
+- **Do not start Phase 7 Checkpoint 2 (Admin: Admissions/Students/Institutions/Courses/
+  Enrollments) or write further frontend code until the user explicitly approves** this
+  checkpoint 1 report.
 - GD PHP extension is now a hard runtime dependency (document PDF/QR generation) — never
   disable/uninstall it; confirm it's in the Hostinger PHP configuration checklist for Phase 8.
+
+### Phase 7 — Frontend (Admin Dashboard + Student Portal), Checkpoint 1/5 complete 2026-09-01
+- User-approved plan: 5 checkpoints, no new backend endpoints unless a genuine gap is found.
+  Explicit constraints: reuse Phase 2 PHP session-cookie + CSRF auth exactly (no JWT/
+  localStorage), frontend calls the backend via **relative `/api`** path only (Hostinger
+  same-origin in production) — never an Emergent preview URL. "Credit efficiency" — no
+  cosmetic/animation work, functionality first.
+- Reused the existing `/app/frontend` CRA+craco+shadcn scaffold (React 19, react-router-dom,
+  @tanstack/react-query, axios, tailwind). Installed shadcn components via
+  `npx shadcn add ...` (button/input/label/card/table/badge/dialog/select/tabs/dropdown-menu/
+  avatar/separator/alert/skeleton/sheet/form/textarea + the pre-existing full set).
+- `app/frontend/craco.config.js` — added a **dev-only** `devServer.proxy` (`/api`, `/uploads`
+  → `http://localhost:8090`) so `yarn start` on port 3000 can use the exact same relative-path
+  application code that will run unmodified on Hostinger; never touches `craco build`.
+  **Important environment note**: the external Emergent preview ingress hardcodes
+  `/api → port 8001` (the unused FastAPI scaffold) and cannot reach our PHP app on port 8090 —
+  so all local frontend dev/testing in this sandbox must use `http://localhost:3000`
+  (not the external preview URL) until Phase 8 deploys the real static-build-in-`public_html`
+  Hostinger architecture.
+- `src/lib/api.js` — axios instance, `baseURL: '/api'`, `withCredentials: true`, CSRF header
+  interceptor (reads an in-memory token set by AuthContext, attaches `X-CSRF-Token` on
+  POST/PUT/DELETE/PATCH).
+- `src/context/AuthContext.jsx` — `login()`/`logout()`/`refresh()` wrapping
+  `/api/auth/{login,logout,me}`; exposes `user`, `permissions[]`, `hasPermission(slug)`,
+  `isStaff`/`isStudent`; restores session on mount via `GET /api/auth/me` (httpOnly cookie).
+- `src/components/ProtectedRoute.jsx` + `src/components/layout/AppLayout.jsx` — role-gated
+  route guards (`allow="staff"`/`"student"`, redirects to the correct home if the wrong role
+  hits the other's route) and a permission-aware sidebar/topbar/mobile-sheet shell.
+- `src/pages/LoginPage.jsx` (unified staff+student login, role-based redirect) +
+  `src/pages/admin/DashboardPage.jsx` (4 permission-gated stat tiles: students/pending
+  admissions/scheduled examinations/documents issued, each hidden if the user lacks that
+  permission) + `src/pages/portal/DashboardPage.jsx` (registration number, status, enrollment
+  count via `/api/me/student` + `/api/me/enrollments`).
+- `src/constants/nav.js` — nav items are added **only as each checkpoint's pages exist**; no
+  placeholder/dead routes.
+
+**Tested (2026-09-01, testing_agent via Playwright at `http://localhost:3000`, 10/10 flows
+passing):** super_admin login → `/admin` with all 4 tiles showing real counts;
+admission_officer login → only 2 tiles render (students/admissions — permission gating
+confirmed); Alice Wonder (student) login → `/portal` with her real registration number +
+enrollment count; route guards correct in all 4 directions (logged-out, wrong-role×2,
+already-authenticated); session persists across a hard reload (cookie-based); logout clears
+the session server-side; wrong password shows an inline error; mobile 400px viewport collapses
+to hamburger + slide-out sheet; CSRF token confirmed sent on the logout POST. **1 minor a11y
+warning found and fixed**: added `SheetTitle`/`SheetDescription` (visually hidden) to the
+mobile nav sheet. Report: `/app/test_reports/iteration_6.json`.
+- Known code-review notes for later (non-blocking, flagged by testing_agent): admin dashboard
+  tiles currently fetch full lists client-side just to show `.length` — fine at current data
+  volume, revisit with lightweight count endpoints if a real perf issue appears.
 - `DiagnosticsController` + `/api/diagnostics/*` routes are Phase-2-only scaffolding for RBAC
   testing — fine to leave, but don't build real features on top of them.
 - Canonical test accounts (see `/app/memory/test_credentials.md`): super_admin, student.test

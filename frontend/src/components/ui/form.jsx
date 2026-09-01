@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 
 const Form = FormProvider
 
-const FormFieldContext = React.createContext({})
+const FormFieldContext = React.createContext(null)
 
 const FormField = (
   {
@@ -18,7 +18,7 @@ const FormField = (
     <FormFieldContext.Provider value={{ name: props.name }}>
       <Controller {...props} />
     </FormFieldContext.Provider>
-  );
+  )
 }
 
 const useFormField = () => {
@@ -26,11 +26,15 @@ const useFormField = () => {
   const itemContext = React.useContext(FormItemContext)
   const { getFieldState, formState } = useFormContext()
 
-  const fieldState = getFieldState(fieldContext.name, formState)
-
   if (!fieldContext) {
     throw new Error("useFormField should be used within <FormField>")
   }
+
+  if (!itemContext) {
+    throw new Error("useFormField should be used within <FormItem>")
+  }
+
+  const fieldState = getFieldState(fieldContext.name, formState)
 
   const { id } = itemContext
 
@@ -44,7 +48,7 @@ const useFormField = () => {
   }
 }
 
-const FormItemContext = React.createContext({})
+const FormItemContext = React.createContext(null)
 
 const FormItem = React.forwardRef(({ className, ...props }, ref) => {
   const id = React.useId()
@@ -53,7 +57,7 @@ const FormItem = React.forwardRef(({ className, ...props }, ref) => {
     <FormItemContext.Provider value={{ id }}>
       <div ref={ref} className={cn("space-y-2", className)} {...props} />
     </FormItemContext.Provider>
-  );
+  )
 })
 FormItem.displayName = "FormItem"
 
@@ -65,8 +69,9 @@ const FormLabel = React.forwardRef(({ className, ...props }, ref) => {
       ref={ref}
       className={cn(error && "text-destructive", className)}
       htmlFor={formItemId}
-      {...props} />
-  );
+      {...props}
+    />
+  )
 })
 FormLabel.displayName = "FormLabel"
 
@@ -83,8 +88,9 @@ const FormControl = React.forwardRef(({ ...props }, ref) => {
           : `${formDescriptionId} ${formMessageId}`
       }
       aria-invalid={!!error}
-      {...props} />
-  );
+      {...props}
+    />
+  )
 })
 FormControl.displayName = "FormControl"
 
@@ -96,8 +102,9 @@ const FormDescription = React.forwardRef(({ className, ...props }, ref) => {
       ref={ref}
       id={formDescriptionId}
       className={cn("text-[0.8rem] text-muted-foreground", className)}
-      {...props} />
-  );
+      {...props}
+    />
+  )
 })
 FormDescription.displayName = "FormDescription"
 
@@ -114,10 +121,11 @@ const FormMessage = React.forwardRef(({ className, children, ...props }, ref) =>
       ref={ref}
       id={formMessageId}
       className={cn("text-[0.8rem] font-medium text-destructive", className)}
-      {...props}>
+      {...props}
+    >
       {body}
     </p>
-  );
+  )
 })
 FormMessage.displayName = "FormMessage"
 

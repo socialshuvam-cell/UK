@@ -125,6 +125,18 @@ webpackConfig.devServer = (devServerConfig) => {
     };
   }
 
+  // Local dev only: proxy relative /api and /uploads calls to the PHP/Apache
+  // backend (port 8090) so the app code can always use production-safe
+  // relative paths (Hostinger serves both from the same origin). Never
+  // affects `craco build` (devServer is dev-server only).
+  devServerConfig.proxy = [
+    {
+      context: ['/api', '/uploads'],
+      target: 'http://localhost:8090',
+      changeOrigin: true,
+    },
+  ];
+
   return devServerConfig;
 };
 
