@@ -343,6 +343,40 @@ float→int deprecation log noise, fixed with explicit `(int)` casts in the vend
 New test account `certofficer.test@kingswellinstitute.uk` (see test_credentials.md). Report:
 `/app/test_reports/iteration_5.json`.
 
+### Phase 7 — Checkpoint 2 (Admin: Admissions/Students/Institutions/Courses/Enrollments), complete 2026-09-01
+- All 5 modules already had full data-fetching/tables/forms/CRUD wired to Phase 3/4 PHP endpoints
+  (built in a prior session before context ran out — handoff notes calling this "empty scaffolding"
+  were inaccurate). This session's work was verification + bugfixing, not net-new UI.
+- `app/Core/Validator.php` — added `Validator::nullifyEmpty(array $data, array $fields): array`
+  static helper (converts `''` → `null` for named fields) to protect nullable/typed DB columns
+  (DATE, ENUM, INT) from MariaDB strict-mode rejection of empty string.
+- `StudentController::update` — applies `nullifyEmpty` to `dob`, `gender`, `email`, `phone`,
+  `address`, `city`, `country`, `nationality`, `guardian_name`, `guardian_phone`, `id_proof_type`,
+  `id_proof_number` before binding.
+- `CourseController::store`/`update` — applies `nullifyEmpty` to `category`, `duration_months`,
+  `total_credits`, `eligibility`, `description`.
+- Frontend: added `DialogDescription` to institution create, course create, course-subject, and
+  course-session dialogs (Radix a11y warning fix).
+
+**Tested (2026-09-01, testing_agent x2 — iteration_7 then iteration_8 re-test, ~34+ checks):**
+admissions list/filter/full review lifecycle (submitted→under_review→approved→enroll→one-time
+credentials dialog), students list/search/filter, student detail 3 tabs (profile edit incl. blank
+optional fields, enrollments read-only, document upload), institutions CRUD + course link/unlink +
+delete-with-no-dependents, courses CRUD + subjects/sessions tabs inline add/edit/delete +
+delete-with-no-dependents, enrollments list/filter/detail/change-status + view-student-record link,
+RBAC (officer sees only permitted nav items, student redirected /admin/*→/portal), session
+persistence on hard reload, a11y dialog warnings resolved. **2 bugs found in iteration_7, 1st fix
+attempt incomplete (found by iteration_8 re-test), both now fully fixed and curl+UI verified**:
+(1) `PUT /api/students/{id}` 500'd on empty-string `dob`/`gender` (ENUM/DATE strict-mode rejection)
+— fixed by expanding `nullifyEmpty` field list; (2) `POST /api/courses` 500'd on empty-string
+`duration_months`/`total_credits` (INT strict-mode rejection) — fixed same way. Reports:
+`/app/test_reports/iteration_7.json`, `iteration_8.json`.
+- Fixture data untouched: Alice Wonder (id=3, phone restored to 1234567890), KWI-MAIN (id=11),
+  CMS course (id=16), admissions 1/51/52. Ephemeral test admission id=53 (submitted status, unique
+  test email) left behind — harmless, safe to ignore/delete later.
+- **User explicitly instructed: STOP after Checkpoint 2, do not start Checkpoint 3** until they
+  review these results and give approval.
+
 ## Prioritized backlog (from ARCHITECTURE.md §11, unchanged)
 - **P2 — Phase 7:** Finance (manual payments + receipts) & notifications, dashboards/reports.
 - **P2 — Phase 8:** Hardening + Hostinger deployment guide/checklist, final relative-API build.

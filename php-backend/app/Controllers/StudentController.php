@@ -71,12 +71,16 @@ final class StudentController
             'country', 'nationality', 'guardian_name', 'guardian_phone', 'id_proof_type',
             'id_proof_number', 'status',
         ];
+        $body = Validator::nullifyEmpty($request->body, [
+            'dob', 'gender', 'email', 'phone', 'address', 'city', 'country', 'nationality',
+            'guardian_name', 'guardian_phone', 'id_proof_type', 'id_proof_number',
+        ]);
         $set = [];
         $params = ['id' => $id];
         foreach ($fields as $field) {
-            if (array_key_exists($field, $request->body)) {
+            if (array_key_exists($field, $body)) {
                 $set[] = "{$field} = :{$field}";
-                $params[$field] = $request->body[$field];
+                $params[$field] = $body[$field];
             }
         }
         if ($set) {

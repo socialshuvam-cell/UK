@@ -17,6 +17,11 @@ import {
 // as each Phase 7 checkpoint adds real pages — do not add placeholder routes.
 export const ADMIN_NAV = [
   { label: "Dashboard", path: "/admin", icon: LayoutDashboard, permission: null, testId: "nav-admin-dashboard" },
+  { label: "Admissions", path: "/admin/admissions", icon: ClipboardList, permission: "admissions.view", testId: "nav-admin-admissions" },
+  { label: "Students", path: "/admin/students", icon: Users, permission: "students.view", testId: "nav-admin-students" },
+  { label: "Institutions", path: "/admin/institutions", icon: Building2, permission: "institutions.manage", testId: "nav-admin-institutions" },
+  { label: "Courses", path: "/admin/courses", icon: BookOpen, permission: "courses.manage", testId: "nav-admin-courses" },
+  { label: "Enrollments", path: "/admin/enrollments", icon: GraduationCap, permission: "enrollments.manage", testId: "nav-admin-enrollments" },
 ];
 
 export const PORTAL_NAV = [

@@ -7,6 +7,16 @@ import LoginPage from "@/pages/LoginPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 import AdminDashboardPage from "@/pages/admin/DashboardPage";
 import PortalDashboardPage from "@/pages/portal/DashboardPage";
+import AdmissionsListPage from "@/pages/admin/admissions/AdmissionsListPage";
+import AdmissionDetailPage from "@/pages/admin/admissions/AdmissionDetailPage";
+import StudentsListPage from "@/pages/admin/students/StudentsListPage";
+import StudentDetailPage from "@/pages/admin/students/StudentDetailPage";
+import InstitutionsListPage from "@/pages/admin/institutions/InstitutionsListPage";
+import InstitutionDetailPage from "@/pages/admin/institutions/InstitutionDetailPage";
+import CoursesListPage from "@/pages/admin/courses/CoursesListPage";
+import CourseDetailPage from "@/pages/admin/courses/CourseDetailPage";
+import EnrollmentsListPage from "@/pages/admin/enrollments/EnrollmentsListPage";
+import EnrollmentDetailPage from "@/pages/admin/enrollments/EnrollmentDetailPage";
 import "@/App.css";
 
 function RootRedirect() {
@@ -33,6 +43,16 @@ function App() {
             }
           >
             <Route index element={<AdminDashboardPage />} />
+            <Route path="admissions" element={<AdmissionsListPage />} />
+            <Route path="admissions/:id" element={<AdmissionDetailPage />} />
+            <Route path="students" element={<StudentsListPage />} />
+            <Route path="students/:id" element={<StudentDetailPage />} />
+            <Route path="institutions" element={<InstitutionsListPage />} />
+            <Route path="institutions/:id" element={<InstitutionDetailPage />} />
+            <Route path="courses" element={<CoursesListPage />} />
+            <Route path="courses/:id" element={<CourseDetailPage />} />
+            <Route path="enrollments" element={<EnrollmentsListPage />} />
+            <Route path="enrollments/:id" element={<EnrollmentDetailPage />} />
           </Route>
 
           <Route

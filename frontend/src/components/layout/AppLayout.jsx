@@ -12,9 +12,11 @@ function initials(user) {
 }
 
 function NavList({ items, onNavigate }) {
+  const { hasPermission } = useAuth();
+  const visible = items.filter((item) => !item.permission || hasPermission(item.permission));
   return (
     <nav className="flex flex-col gap-1 p-3" data-testid="sidebar-nav">
-      {items.map((item) => (
+      {visible.map((item) => (
         <NavLink
           key={item.path}
           to={item.path}

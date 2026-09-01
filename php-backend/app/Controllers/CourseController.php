@@ -81,20 +81,21 @@ final class CourseController
             Response::json(['errors' => ['code' => ['Course code already exists']]], 422);
         }
 
+        $body = Validator::nullifyEmpty($request->body, ['category', 'duration_months', 'total_credits', 'eligibility', 'description']);
         $stmt = $pdo->prepare(
             'INSERT INTO courses (code, name, level, category, duration_months, total_credits, eligibility, description, status)
              VALUES (:code, :name, :level, :category, :duration_months, :total_credits, :eligibility, :description, :status)'
         );
         $stmt->execute([
-            'code'            => $request->body['code'],
-            'name'            => $request->body['name'],
-            'level'           => $request->body['level'] ?? 'certificate',
-            'category'        => $request->body['category'] ?? null,
-            'duration_months' => $request->body['duration_months'] ?? null,
-            'total_credits'   => $request->body['total_credits'] ?? null,
-            'eligibility'     => $request->body['eligibility'] ?? null,
-            'description'     => $request->body['description'] ?? null,
-            'status'          => $request->body['status'] ?? 'active',
+            'code'            => $body['code'],
+            'name'            => $body['name'],
+            'level'           => $body['level'] ?? 'certificate',
+            'category'        => $body['category'] ?? null,
+            'duration_months' => $body['duration_months'] ?? null,
+            'total_credits'   => $body['total_credits'] ?? null,
+            'eligibility'     => $body['eligibility'] ?? null,
+            'description'     => $body['description'] ?? null,
+            'status'          => $body['status'] ?? 'active',
         ]);
 
         $id = (int) $pdo->lastInsertId();
@@ -131,12 +132,13 @@ final class CourseController
         }
 
         $fields = ['code', 'name', 'level', 'category', 'duration_months', 'total_credits', 'eligibility', 'description', 'status'];
+        $body = Validator::nullifyEmpty($request->body, ['category', 'duration_months', 'total_credits', 'eligibility', 'description']);
         $set = [];
         $params = ['id' => $id];
         foreach ($fields as $field) {
-            if (array_key_exists($field, $request->body)) {
+            if (array_key_exists($field, $body)) {
                 $set[] = "{$field} = :{$field}";
-                $params[$field] = $request->body[$field];
+                $params[$field] = $body[$field];
             }
         }
         if ($set) {

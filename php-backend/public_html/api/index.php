@@ -38,8 +38,8 @@ $router->get('/api/diagnostics/admin-only', [DiagnosticsController::class, 'admi
 $router->get('/api/diagnostics/students-view', [DiagnosticsController::class, 'studentsView'], ['auth', 'permission:students.view']);
 
 // Institutions / centres
-$router->get('/api/institutions', [InstitutionController::class, 'index'], ['auth', 'permission:institutions.manage']);
-$router->get('/api/institutions/{id}', [InstitutionController::class, 'show'], ['auth', 'permission:institutions.manage']);
+$router->get('/api/institutions', [InstitutionController::class, 'index'], ['auth']);
+$router->get('/api/institutions/{id}', [InstitutionController::class, 'show'], ['auth']);
 $router->post('/api/institutions', [InstitutionController::class, 'store'], ['auth', 'csrf', 'permission:institutions.manage']);
 $router->put('/api/institutions/{id}', [InstitutionController::class, 'update'], ['auth', 'csrf', 'permission:institutions.manage']);
 $router->delete('/api/institutions/{id}', [InstitutionController::class, 'destroy'], ['auth', 'csrf', 'permission:institutions.manage']);
@@ -47,20 +47,20 @@ $router->post('/api/institutions/{id}/courses', [InstitutionController::class, '
 $router->delete('/api/institutions/{id}/courses/{courseId}', [InstitutionController::class, 'unlinkCourse'], ['auth', 'csrf', 'permission:institutions.manage']);
 
 // Courses
-$router->get('/api/courses', [CourseController::class, 'index'], ['auth', 'permission:courses.manage']);
-$router->get('/api/courses/{id}', [CourseController::class, 'show'], ['auth', 'permission:courses.manage']);
+$router->get('/api/courses', [CourseController::class, 'index'], ['auth']);
+$router->get('/api/courses/{id}', [CourseController::class, 'show'], ['auth']);
 $router->post('/api/courses', [CourseController::class, 'store'], ['auth', 'csrf', 'permission:courses.manage']);
 $router->put('/api/courses/{id}', [CourseController::class, 'update'], ['auth', 'csrf', 'permission:courses.manage']);
 $router->delete('/api/courses/{id}', [CourseController::class, 'destroy'], ['auth', 'csrf', 'permission:courses.manage']);
 
 // Course subjects (nested under a course)
-$router->get('/api/courses/{courseId}/subjects', [CourseSubjectController::class, 'index'], ['auth', 'permission:courses.manage']);
+$router->get('/api/courses/{courseId}/subjects', [CourseSubjectController::class, 'index'], ['auth']);
 $router->post('/api/courses/{courseId}/subjects', [CourseSubjectController::class, 'store'], ['auth', 'csrf', 'permission:courses.manage']);
 $router->put('/api/courses/{courseId}/subjects/{subjectId}', [CourseSubjectController::class, 'update'], ['auth', 'csrf', 'permission:courses.manage']);
 $router->delete('/api/courses/{courseId}/subjects/{subjectId}', [CourseSubjectController::class, 'destroy'], ['auth', 'csrf', 'permission:courses.manage']);
 
 // Course sessions (nested under a course)
-$router->get('/api/courses/{courseId}/sessions', [CourseSessionController::class, 'index'], ['auth', 'permission:sessions.manage']);
+$router->get('/api/courses/{courseId}/sessions', [CourseSessionController::class, 'index'], ['auth']);
 $router->post('/api/courses/{courseId}/sessions', [CourseSessionController::class, 'store'], ['auth', 'csrf', 'permission:sessions.manage']);
 $router->put('/api/courses/{courseId}/sessions/{sessionId}', [CourseSessionController::class, 'update'], ['auth', 'csrf', 'permission:sessions.manage']);
 $router->delete('/api/courses/{courseId}/sessions/{sessionId}', [CourseSessionController::class, 'destroy'], ['auth', 'csrf', 'permission:sessions.manage']);

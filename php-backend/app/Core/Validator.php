@@ -57,6 +57,19 @@ final class Validator
         return count($this->errors) > 0;
     }
 
+    // Converts '' to null for the given fields (typed/nullable DB columns like
+    // DATE or INT reject '' under MySQL strict mode) so optional form inputs
+    // left blank don't 500 on write. Call before binding to a prepared statement.
+    public static function nullifyEmpty(array $data, array $fields): array
+    {
+        foreach ($fields as $field) {
+            if (array_key_exists($field, $data) && $data[$field] === '') {
+                $data[$field] = null;
+            }
+        }
+        return $data;
+    }
+
     public function errors(): array
     {
         return $this->errors;

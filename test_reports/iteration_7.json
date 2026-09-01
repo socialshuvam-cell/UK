@@ -1,0 +1,45 @@
+{
+  "summary": "Phase 7 Checkpoint 2 frontend testing (Admin: Admissions, Students, Institutions/Courses, Enrollments). ~34 checks executed at http://localhost:3000 against the live PHP backend. Core happy paths pass: super_admin login → /admin with full sidebar; admissions list + status filter; full admission review lifecycle (submitted → under_review → approved → enroll → credentials dialog + view-student link); students list + search; student detail with 3 tabs; institution create → link course → unlink → delete; enrollments list + detail + change-status dialog; RBAC officer sees only permitted nav; student redirected from /admin/* to /portal; session persists on hard reload. Two BACKEND integration bugs surfaced through the UI: (1) PUT /api/students/:id returns 500 when frontend sends dob:'' (empty string) — student profile edits SILENTLY DO NOT PERSIST (toast shows error but the form remains populated so it 'looks' saved); (2) POST /api/courses returns 500 when duration_months (or total_credits) is empty string — creating a course with only Code+Name fails. Both are 'empty-string-not-null' normalization gaps.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "PUT /api/students/{id}", "issue": "SQLSTATE[22007] Invalid datetime format: 1292 Incorrect date value: '' for column students.dob — controller at StudentController.php:83 doesn't normalise empty-string date/nullable numeric fields to NULL before UPDATE. Frontend StudentDetailPage.jsx sends the whole EDITABLE_FIELDS form where every '' stays as '' (e.g. dob, guardian_phone, etc.). Any student whose dob is currently NULL cannot be edited via the UI at all — even editing just the phone fails silently.", "priority": "HIGH"},
+      {"endpoint": "POST /api/courses (and likely PUT /api/courses/{id})", "issue": "SQLSTATE[22007] Invalid integer value: '' for column courses.duration_months at CourseController.php:88. Frontend CoursesListPage EMPTY_FORM sets duration_months:'' and total_credits:'', so creating a course with only Code+Name (a valid MVP flow) yields 500. Same normalisation gap.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "PHP-wide", "issue": "phpqrcode vendor lib floods app.log with 'Implicit conversion from float ... to int loses precision' deprecation notices on every certificate generation (Phase 6 territory, not Checkpoint 2, but worth silencing)"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "StudentDetailPage", "issue": "On save failure (500), the form fields stay populated with the user's edited values, so it visually looks 'saved' even though the DB was not updated. Also the form sends '' for empty dob/guardian_* which triggers the backend 500. Fix: convert '' → null for nullable fields before PUT, and/or reset form from server response on failure.", "selector": "[data-testid=\"student-save-button\"]", "priority": "HIGH"},
+      {"component": "CoursesListPage create dialog", "issue": "duration_months and total_credits default to '' (empty string) — should default to null or be stripped before POST. Currently POST fails with 500 for a basic Code+Name-only create.", "selector": "[data-testid=\"course-create-submit\"]", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Student profile edit", "issue": "Save Changes appears to succeed (no visible error unless user watches the toast for 3s and re-reads the phone value in DB) — DB is unchanged.", "affected_selectors": ["[data-testid=\"student-save-button\"]", "[data-testid=\"student-phone-input\"]"]}
+    ],
+    "design_issues": [
+      {"screen": "All dialogs", "issues": ["React console warning: 'Missing Description or aria-describedby={undefined} for {DialogContent}' on create-institution / create-course / subject / session / enroll dialogs. Add <DialogDescription> or aria-describedby for a11y."]},
+      {"screen": "DevServer", "issues": ["ws://localhost:443/ws WebSocket connection continually fails in console (craco/webpack HMR misconfig on this container). Cosmetic only — does not affect functionality."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_7.json"],
+  "action_items": [
+    "Fix StudentController::update — normalise empty-string date/nullable fields to NULL (or add DB layer coercion). Verify PUT /api/students/{id} succeeds when body contains dob:'' or guardian_phone:''.",
+    "Fix CourseController::create/update — same empty-string → NULL treatment for duration_months, total_credits, category, eligibility, description.",
+    "Frontend defensive fix (optional but recommended): in StudentDetailPage & CoursesListPage, strip empty strings for known nullable numeric/date fields before sending — protects future callers too.",
+    "Add <DialogDescription> or aria-describedby to all shadcn Dialog usages (institution create, course create, subject dialog, session dialog, enroll dialog, credentials dialog) to remove Radix a11y warning."
+  ],
+  "critical_code_review_comments": [
+    "StudentDetailPage sends the entire EDITABLE_FIELDS form (with '' for empty values). Backend must be tolerant OR frontend must transform — pick one and enforce consistently across all edit forms.",
+    "CoursesListPage and CoursesDetailPage both send raw empty strings for optional numeric inputs — same pattern will bite Institution/Enrollment/Session edits if those tables have similar NOT-NULL/nullable numeric columns.",
+    "Save-mutation error UX is minimal — only a toast; the form doesn't reset to server truth on failure, giving false impression of success. Consider `onError` resetting form or highlighting fields."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (backend not directly re-tested this iteration)", "frontend": "~91% (2 real bugs / 34 checks; RBAC + happy paths all green)"},
+  "test_credentials": "super_admin admin@kingswellinstitute.uk / oCP2yig7fNG50VF1r4CX; admission_officer officer.test@kingswellinstitute.uk / OfficerPass123!; student alice.wonder@example.com / Iwt5CBibo5Xs (linked)",
+  "seed_data_creation": "Created admission id=52 (KWI/ADM/2026/000052) via API to exercise the submitted→under_review→approved→enrolled flow; enrolling it minted a NEW student record (TestReview Applicant, test.review@example.com) with a temporary password shown in the credentials dialog. Ephemeral test institution 'TST######' and test course 'TC######' were created and cleanly deleted during testing. Alice Wonder (id=3), CMS course (id=16), KWI-MAIN institution (id=11) — untouched. Alice's original 2 CMS enrollments and Alice profile phone (1234567890) — untouched (student profile update failed with 500 as reported).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Once main agent fixes the two 500s (empty-string → NULL normalisation in StudentController::update and CourseController::create/update), re-run: (1) log in as super_admin, visit /admin/students/3, change phone only and Save → GET /api/students/3 should show the new phone. (2) /admin/courses → New Course with just Code + Name → should succeed and appear in list. Prior admission id=52 is now in status=enrolled; do NOT re-run the review lifecycle on it — create a fresh submitted admission via POST /api/admissions with {first_name,last_name,email,phone,course_id:16,institution_id:11}. Note: sidebar visibility 'FAIL' on nav-admin-dashboard/admissions/students in the first script was a test timing artefact (checked mid-render); a follow-up RBAC test confirmed all 6 super_admin nav items render correctly.",
+  "rca of the issue": "Root cause for both 500s is identical: PHP controllers pass frontend payload directly to prepared statement bind values without coercing '' → NULL for nullable/typed columns (DATE, INT). MariaDB in strict mode (default) rejects '' for DATE and INT. Reproduction: POST /api/courses {code:'X',name:'X',level:'certificate',duration_months:'',total_credits:''} → 500; PUT /api/students/3 {first_name:'Alice',...,dob:''} → 500. Mitigation: in each controller's validator/sanitiser, iterate the payload and set any key whose value is '' AND whose target column is nullable/non-string to null before binding. A single helper `nullifyEmpty($arr, ['dob','duration_months','total_credits','category',...])` reused across controllers is the cleanest fix."
+}
