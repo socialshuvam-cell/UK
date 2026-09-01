@@ -61,7 +61,7 @@ request that triggers them.
 ## 3. Database Design
 
 Full DDL is in **`/app/database/schema.sql`**. ER diagram: **`/app/docs/er_diagram.png`**.
-30 tables across 8 modules. Engine InnoDB, charset utf8mb4, all FKs enforced.
+29 tables across 8 modules. Engine InnoDB, charset utf8mb4, all FKs enforced (60 foreign keys).
 
 ### 3.1 Table list by module
 
@@ -90,7 +90,8 @@ Full DDL is in **`/app/database/schema.sql`**. ER diagram: **`/app/docs/er_diagr
 
 **Module 7 — Documents**
 - `document_templates` — pluggable designs per doc_type (HTML/CSS + fields_config JSON)
-- `documents` — **unified** issued-document table for ALL types; holds `verification_token`, `status`, `data_snapshot`, `superseded_by`
+- `documents` — **unified** issued-document table for ALL types; holds `verification_token`, `status`, `data_snapshot` + `snapshot_hash`, `revision`, `replaces_document_id`/`superseded_by`, and anchors `admission_id`/`enrollment_id`/`exam_registration_id`/`result_id`
+- `document_results` — pivot for documents that aggregate MANY results (transcripts, degrees)
 - `document_signatories` — signatories snapshot per document
 - `document_verifications` — log of every public `/verify/{token}` lookup
 
@@ -119,7 +120,12 @@ tables, gives one verification path, and lets new designs be added as templates 
 
 `data_snapshot` (JSON) freezes the exact values printed (name, photo path, marks, grade, course, session,
 signatories) at issue time — so a later name/course correction never silently changes an already-issued
-official document.
+official document. `snapshot_hash` (sha256 of the snapshot) makes tampering detectable, and a
+**BEFORE UPDATE trigger** (`trg_documents_immutable`) blocks any change to `data_snapshot`,
+`document_number`, or `verification_token` at the database level — lifecycle fields (status, revoke,
+supersede) remain editable. Reissues are modelled as a new row (`revision`, `replaces_document_id`
+new→old) while the old row is set `status='superseded'` with `superseded_by` old→new; documents that
+aggregate many results (transcripts, degrees) list them in `document_results`.
 
 ---
 
@@ -315,3 +321,41 @@ QR verification              → documents.verification_token → /verify/{token
 Hostinger Premium compatibility (no persistent process, Apache+PHP+MySQL only) · security enforced
 server-side · maintainable (unified documents + template architecture + configurable counters) ·
 **no future backend migration** (vanilla PHP + MySQL is the final production stack from Phase 1).
+
+---
+
+## 13. Final Schema Review — verification log
+
+The revised schema (`schema.sql`) was imported into MySQL/MariaDB and each requirement exercised
+with live SQL. Result: **PASS**. Summary:
+
+| # | Requirement | Verified how | Result |
+|---|---|---|---|
+| 1 | All 8 document types | `documents.doc_type` & `document_templates.doc_type` ENUMs contain hall_ticket, marksheet, transcript, certificate, diploma, degree, completion_letter, admission_letter | ✔ |
+| 2 | Immutable `data_snapshot` | `snapshot_hash` + trigger `trg_documents_immutable`; UPDATE of snapshot/number/token rejected with SQLSTATE 45000; status change allowed | ✔ |
+| 3 | Lifecycle valid/revoked/cancelled/superseded | `documents.status` ENUM; revoked row retained & still verifiable | ✔ |
+| 4 | Reissue/version relationship | `revision`, `replaces_document_id` (new→old FK) + `superseded_by` (old→new FK); chain tested | ✔ |
+| 5 | Public QR verification, no auth | `verification_token` UNIQUE + `document_verifications` log; route requires no session | ✔ |
+| 6 | Transaction-safe, collision-proof numbering | `counters` UNIQUE(sequence_key,scope_key,year) + `SELECT … FOR UPDATE`; UNIQUE on every target column (reg no, roll no, doc number, hall ticket) as backstop | ✔ |
+| 7 | Multiple enrollments / courses / sessions per student | `enrollments` UNIQUE(student_id,course_id,session_id) allows many rows per student | ✔ |
+| 8 | Multiple exams & results per enrollment | `exam_registrations(enrollment_id)` many; `results` 1:1 per registration → many per enrollment | ✔ |
+| 9 | Strict student ownership | `users.student_id` scopes a student to their own `students`/`results`/`documents`/`payments` rows (indexed) | ✔ |
+| 10 | Server-controlled fields | reg/roll/doc numbers, marks, results, status all DB-held & server-generated; number/snapshot/token immutable | ✔ |
+| 11 | Role/permission isolation (7 roles) | `roles` seeded ×7, `permissions`+`role_permissions`; centre scoping via `users.institution_id` | ✔ |
+| 12 | Manual payments, no gateway | `payments.payment_method` ENUM + `reference_number` + `notes` + `recorded_by`; no gateway fields | ✔ |
+
+**FK / index / constraint checks:** 29 tables, 60 foreign keys. Delete behaviour is deliberate —
+`ON DELETE SET NULL` for actor/reference links (users, templates, sessions, institutions) so history
+survives; `ON DELETE CASCADE` only for owned children (subjects, marks, signatories, pivots,
+notifications, sessions); `RESTRICT` (default) on `documents/results/exam_registrations → students`
+so a student holding official records can never be hard-deleted (status is used instead). Every
+identifier column is UNIQUE; verification token, document number, uuid, email, roll/registration/hall-ticket
+numbers all enforced at the DB.
+
+**Changes made in this review (only these 4):**
+1. Added `documents.admission_id` FK → anchors **Admission Letters**.
+2. Added `document_results` pivot → **Transcripts/Degrees** referencing many results.
+3. Added `documents.revision` + `replaces_document_id` → clear two-way **reissue/version** chain.
+4. Added `documents.snapshot_hash` + immutability **trigger**; added counters for `TR`, `CL`, `AL`, `RCP`.
+
+Phase 0 is ready. Awaiting approval to begin Phase 1.

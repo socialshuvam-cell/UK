@@ -450,19 +450,23 @@ CREATE TABLE documents (
                           'diploma','degree','completion_letter','admission_letter') NOT NULL,
   template_id        INT UNSIGNED NULL,
   student_id         BIGINT UNSIGNED NOT NULL,
-  enrollment_id      BIGINT UNSIGNED NULL,
+  admission_id       BIGINT UNSIGNED NULL,           -- anchor for admission_letter
+  enrollment_id      BIGINT UNSIGNED NULL,           -- anchor for completion_letter/degree
   examination_id     BIGINT UNSIGNED NULL,
-  result_id          BIGINT UNSIGNED NULL,
-  exam_registration_id BIGINT UNSIGNED NULL,
+  result_id          BIGINT UNSIGNED NULL,           -- primary result (marksheet); transcripts use document_results
+  exam_registration_id BIGINT UNSIGNED NULL,         -- anchor for hall_ticket
   course_id          INT UNSIGNED NULL,
   session_id         INT UNSIGNED NULL,
   institution_id     INT UNSIGNED NULL,
   verification_token CHAR(48)     NOT NULL,          -- random, indexed for /verify/{token}
   qr_code_path       VARCHAR(255) NULL,
   file_path          VARCHAR(255) NULL,              -- generated PDF in /uploads
-  data_snapshot      JSON         NULL,              -- frozen field values at issue time
+  data_snapshot      JSON         NULL,              -- frozen field values at issue time (immutable)
+  snapshot_hash      CHAR(64)     NULL,              -- sha256 of data_snapshot for tamper detection
   status             ENUM('valid','revoked','cancelled','superseded') NOT NULL DEFAULT 'valid',
-  superseded_by      BIGINT UNSIGNED NULL,           -- self-ref to replacement doc
+  revision           SMALLINT UNSIGNED NOT NULL DEFAULT 1,  -- reissue version number
+  replaces_document_id BIGINT UNSIGNED NULL,         -- new->old (the doc this reissue replaces)
+  superseded_by      BIGINT UNSIGNED NULL,           -- old->new (the reissue that replaced this)
   issue_date         DATE         NOT NULL,
   issued_by          BIGINT UNSIGNED NULL,
   revoked_by         BIGINT UNSIGNED NULL,
@@ -477,8 +481,12 @@ CREATE TABLE documents (
   KEY idx_documents_student (student_id),
   KEY idx_documents_type (doc_type),
   KEY idx_documents_status (status),
+  KEY idx_documents_admission (admission_id),
+  KEY idx_documents_result (result_id),
+  KEY idx_documents_replaces (replaces_document_id),
   CONSTRAINT fk_docs_template     FOREIGN KEY (template_id)          REFERENCES document_templates(id) ON DELETE SET NULL,
   CONSTRAINT fk_docs_student      FOREIGN KEY (student_id)           REFERENCES students(id),
+  CONSTRAINT fk_docs_admission    FOREIGN KEY (admission_id)         REFERENCES admissions(id)         ON DELETE SET NULL,
   CONSTRAINT fk_docs_enrollment   FOREIGN KEY (enrollment_id)        REFERENCES enrollments(id)        ON DELETE SET NULL,
   CONSTRAINT fk_docs_exam         FOREIGN KEY (examination_id)       REFERENCES examinations(id)       ON DELETE SET NULL,
   CONSTRAINT fk_docs_result       FOREIGN KEY (result_id)            REFERENCES results(id)            ON DELETE SET NULL,
@@ -488,8 +496,40 @@ CREATE TABLE documents (
   CONSTRAINT fk_docs_institution  FOREIGN KEY (institution_id)       REFERENCES institutions(id)       ON DELETE SET NULL,
   CONSTRAINT fk_docs_issuer       FOREIGN KEY (issued_by)            REFERENCES users(id)              ON DELETE SET NULL,
   CONSTRAINT fk_docs_revoker      FOREIGN KEY (revoked_by)           REFERENCES users(id)              ON DELETE SET NULL,
+  CONSTRAINT fk_docs_replaces     FOREIGN KEY (replaces_document_id) REFERENCES documents(id)          ON DELETE SET NULL,
   CONSTRAINT fk_docs_superseded   FOREIGN KEY (superseded_by)        REFERENCES documents(id)          ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Pivot: documents that aggregate MANY results (transcripts, degrees).
+-- Keeps the immutable data_snapshot authoritative for printing while
+-- recording exactly which results were included at issue time.
+CREATE TABLE document_results (
+  document_id     BIGINT UNSIGNED NOT NULL,
+  result_id       BIGINT UNSIGNED NOT NULL,
+  sort_order      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (document_id, result_id),
+  KEY idx_docresults_result (result_id),
+  CONSTRAINT fk_docresults_doc    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+  CONSTRAINT fk_docresults_result FOREIGN KEY (result_id)   REFERENCES results(id)   ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Immutability guard: once a document row exists, its snapshot/number/token
+-- can never be altered by any code path. Lifecycle fields (status, revoke,
+-- supersede) remain editable. Enforced at DB level, not just in the app.
+DELIMITER //
+CREATE TRIGGER trg_documents_immutable
+BEFORE UPDATE ON documents
+FOR EACH ROW
+BEGIN
+  IF NOT (NEW.data_snapshot <=> OLD.data_snapshot)
+     OR NEW.document_number    <> OLD.document_number
+     OR NEW.verification_token <> OLD.verification_token
+     OR NOT (NEW.snapshot_hash <=> OLD.snapshot_hash) THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Immutable document fields (snapshot/number/token) cannot be modified';
+  END IF;
+END//
+DELIMITER ;
 
 -- Authorised signatories (per document, snapshot of who signed)
 CREATE TABLE document_signatories (
@@ -613,4 +653,8 @@ INSERT INTO counters (sequence_key, scope_key, year, current_value, padding, for
  ('DEG',  '',   2026, 0, 6, 'KWI/DEG/{year}/{seq}'),
  ('MS',   '',   2026, 0, 6, 'KWI/MS/{year}/{seq}'),
  ('HT',   '',   2026, 0, 6, 'KWI/HT/{year}/{seq}'),
+ ('TR',   '',   2026, 0, 6, 'KWI/TR/{year}/{seq}'),
+ ('CL',   '',   2026, 0, 6, 'KWI/CL/{year}/{seq}'),
+ ('AL',   '',   2026, 0, 6, 'KWI/AL/{year}/{seq}'),
+ ('RCP',  '',   2026, 0, 6, 'KWI/RCP/{year}/{seq}'),
  ('ROLL', 'CMS',2026, 0, 4, 'KWI/{yy}/{scope}/{seq}');

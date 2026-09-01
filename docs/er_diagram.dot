@@ -43,7 +43,8 @@ digraph KingswellERD {
 
   // DOCUMENTS
   document_templates    [fillcolor="#fee2e2", label="{document_templates|id (PK)\ldoc_type\lhtml_layout\lfields_config}"];
-  documents             [fillcolor="#fee2e2", label="{documents|id (PK)\luuid (UQ)\ldocument_number (UQ)\ldoc_type\lstudent_id (FK)\lresult_id (FK)\ltemplate_id (FK)\lverification_token (UQ)\lstatus\lsuperseded_by (FK)}"];
+  documents             [fillcolor="#fee2e2", label="{documents|id (PK)\luuid (UQ)\ldocument_number (UQ)\ldoc_type\lstudent_id (FK)\ladmission_id (FK)\lresult_id (FK)\ltemplate_id (FK)\lverification_token (UQ)\lsnapshot_hash\lstatus\lrevision\lreplaces_document_id (FK)\lsuperseded_by (FK)}"];
+  document_results      [fillcolor="#fee2e2", label="{document_results|document_id (FK)\lresult_id (FK)\lsort_order}"];
   document_signatories  [fillcolor="#fee2e2", label="{document_signatories|id (PK)\ldocument_id (FK)\lname\ldesignation}"];
   document_verifications[fillcolor="#fee2e2", label="{document_verifications|id (PK)\ldocument_id (FK)\ltoken_used\lresult}"];
 
@@ -98,7 +99,10 @@ digraph KingswellERD {
   exam_registrations -> documents [label="0..*"];
   documents -> document_signatories [label="1..*"];
   documents -> document_verifications [label="0..*"];
-  documents -> documents [label="superseded_by"];
+  documents -> document_results [label="1..*"];
+  results -> document_results [label="0..*"];
+  admissions -> documents [label="0..* (admission_letter)"];
+  documents -> documents [label="replaces / superseded_by"];
 
   students -> payments [label="1..*"];
   enrollments -> payments [label="0..*"];
